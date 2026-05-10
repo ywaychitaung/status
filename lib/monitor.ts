@@ -36,11 +36,6 @@ export const MONITORS: MonitorTarget[] = [
     name: "Utilities",
     url: "https://utils.ywaychitaung.dev",
   },
-  {
-    id: "recipes-ywaychitaung-dev",
-    name: "Recipes",
-    url: "https://recipes.ywaychitaung.dev",
-  },
 ];
 
 export function monitorKey(id: string): Deno.KvKey {
