@@ -23,7 +23,7 @@ export interface MonitorSummary {
 export const MONITORS: MonitorTarget[] = [
   {
     id: "ywaychitaung-dev",
-    name: "Portfolio",
+    name: "Portfolio v5",
     url: "https://ywaychitaung.dev",
   },
   {
