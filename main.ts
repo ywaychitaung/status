@@ -1,10 +1,17 @@
 import { App, staticFiles } from "fresh";
 import { runChecks } from "@/lib/kv.ts";
+import { applySecurityHeaders } from "@/lib/securityHeaders.ts";
 import type { State } from "./utils.ts";
 
 export const app = new App<State>();
 
 app.use(staticFiles());
+
+app.use(async (ctx) => {
+  const res = await ctx.next();
+  applySecurityHeaders(res.headers);
+  return res;
+});
 
 const appGlobal = globalThis as typeof globalThis & {
   __statusCronRegistered?: boolean;
