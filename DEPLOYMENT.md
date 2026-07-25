@@ -44,27 +44,15 @@ Examples:
 Create `/opt/<REPO_NAME>/.env`:
 
 ```env
-APP_NAME=<APP_NAME>
-DASHBOARD_TIMEZONE=<IANA_TIMEZONE>
-DASHBOARD_TIMEZONE_SHORT=<TIMEZONE_SHORT>
-DASHBOARD_TIMEZONE_NAME=<TIMEZONE_FULL_NAME>
-DASHBOARD_TIMEZONE_UTC_LABEL=<UTC_LABEL>
-
 ALERT_DISCORD_WEBHOOK_URL=<DISCORD_WEBHOOK_URL>
 ALERT_TELEGRAM_BOT_TOKEN=<TELEGRAM_BOT_TOKEN>
 ALERT_TELEGRAM_CHAT_ID=<TELEGRAM_CHAT_ID>
-
-ALERT_ON_DOWN=true
-ALERT_ON_RECOVERY=true
-ALERT_DOWN_INTERVAL_MINUTES=60
 ```
 
-Example timezone values:
+App name, timezone, alert thresholds, and related settings are configured in
+`lib/constants.ts` (not environment variables).
 
-- `DASHBOARD_TIMEZONE=Asia/Singapore`
-- `DASHBOARD_TIMEZONE_SHORT=SGT`
-- `DASHBOARD_TIMEZONE_NAME=Singapore Time`
-- `DASHBOARD_TIMEZONE_UTC_LABEL=UTC/GMT +8`
+Leave Discord/Telegram values empty to disable that alert channel.
 
 ## 5) Build app
 

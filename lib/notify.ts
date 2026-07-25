@@ -1,21 +1,6 @@
 import type { MonitorStatus, MonitorTarget } from "@/lib/monitor.ts";
 import { formatDashboardDatetime } from "@/lib/datetimeFormat.ts";
-
-function parseBooleanEnv(name: string, defaultValue: boolean): boolean {
-  const raw = Deno.env.get(name);
-  if (raw == null || raw.trim() === "") return defaultValue;
-  const normalized = raw.trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes" ||
-    normalized === "on";
-}
-
-function parseNumberEnv(name: string, defaultValue: number): number {
-  const raw = Deno.env.get(name);
-  if (raw == null || raw.trim() === "") return defaultValue;
-  const parsed = Number(raw.trim());
-  if (!Number.isFinite(parsed) || parsed <= 0) return defaultValue;
-  return parsed;
-}
+import { ALERTS, DASHBOARD_TIMEZONE } from "@/lib/constants.ts";
 
 function buildMessage(
   monitor: MonitorTarget,
@@ -35,7 +20,6 @@ function buildMessage(
     : `${next.responseTimeMs} ms`;
   const error = next.error ?? "None";
   const checkedAt = formatDashboardDatetime(next.checkedAt);
-  const timezoneId = Deno.env.get("DASHBOARD_TIMEZONE")?.trim() || "UTC";
   const lines = [
     `Uptime alert: ${monitor.name} is ${state}`,
     `URL: ${monitor.url}`,
@@ -43,7 +27,7 @@ function buildMessage(
     `Latency: ${latency}`,
     `Error: ${error}`,
     `Checked at: ${checkedAt}`,
-    `Timezone: ${timezoneId}`,
+    `Timezone: ${DASHBOARD_TIMEZONE.id}`,
     `Transition: ${transition}`,
   ];
   if (!next.up && consecutiveDowns != null) {
@@ -53,7 +37,7 @@ function buildMessage(
 }
 
 async function sendDiscord(text: string): Promise<void> {
-  const webhook = Deno.env.get("ALERT_DISCORD_WEBHOOK_URL");
+  const webhook = Deno.env.get("ALERT_DISCORD_WEBHOOK_URL")?.trim();
   if (!webhook) return;
 
   const response = await fetch(webhook, {
@@ -94,13 +78,15 @@ function readConsecutiveDowns(
 ): number {
   if (entry.versionstamp === null) return 0;
   const v = entry.value;
-  if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
+  if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+    return Math.floor(v);
+  }
   return 0;
 }
 
 async function sendTelegram(text: string): Promise<void> {
-  const token = Deno.env.get("ALERT_TELEGRAM_BOT_TOKEN");
-  const chatId = Deno.env.get("ALERT_TELEGRAM_CHAT_ID");
+  const token = Deno.env.get("ALERT_TELEGRAM_BOT_TOKEN")?.trim();
+  const chatId = Deno.env.get("ALERT_TELEGRAM_CHAT_ID")?.trim();
   if (!token || !chatId) return;
 
   const endpoint = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -126,9 +112,7 @@ export async function notifyStatusChange(args: {
   previousUp: boolean | null;
 }) {
   const { kv, monitor, next, previousUp } = args;
-  const alertOnDown = parseBooleanEnv("ALERT_ON_DOWN", true);
-  const alertOnRecovery = parseBooleanEnv("ALERT_ON_RECOVERY", true);
-  const consecutiveThreshold = parseNumberEnv("ALERT_DOWN_CONSECUTIVE", 5);
+  const { onDown, onRecovery, downConsecutive, downIntervalMinutes } = ALERTS;
   const isRecoveryTransition = previousUp === false && next.up === true;
 
   const consecutiveKey: Deno.KvKey = [
@@ -151,10 +135,9 @@ export async function notifyStatusChange(args: {
     const consecutive = readConsecutiveDowns(consecutiveEntry) + 1;
     await kv.set(consecutiveKey, consecutive);
 
-    if (!alertOnDown) return;
-    if (consecutive < consecutiveThreshold) return;
+    if (!onDown) return;
+    if (consecutive < downConsecutive) return;
 
-    const downIntervalMinutes = parseNumberEnv("ALERT_DOWN_INTERVAL_MINUTES", 60);
     const downIntervalMs = downIntervalMinutes * 60_000;
 
     // Throttle repeated DOWN alerts while the monitor stays failed.
@@ -187,11 +170,11 @@ export async function notifyStatusChange(args: {
   // threshold (i.e. a real confirmed outage, not a short flap).
   const consecutiveEntry = await kv.get<number>(consecutiveKey);
   const consecutive = readConsecutiveDowns(consecutiveEntry);
-  const wasConfirmedDown = consecutive >= consecutiveThreshold;
+  const wasConfirmedDown = consecutive >= downConsecutive;
   await kv.delete(consecutiveKey);
   await kv.delete(downThrottleKey);
 
-  if (!wasConfirmedDown || !isRecoveryTransition || !alertOnRecovery) return;
+  if (!wasConfirmedDown || !isRecoveryTransition || !onRecovery) return;
 
   const message = buildMessage(monitor, next, previousUp);
   await Promise.allSettled([sendDiscord(message), sendTelegram(message)]);

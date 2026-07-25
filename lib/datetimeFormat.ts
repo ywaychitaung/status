@@ -1,4 +1,5 @@
 import { formatDashboardDatetimeWithTimezone } from "@/lib/datetimeShared.ts";
+import { DASHBOARD_TIMEZONE } from "@/lib/constants.ts";
 
 export interface DashboardTimezoneConfig {
   id: string;
@@ -19,13 +20,12 @@ function safeTimezone(timezoneId: string): string {
 }
 
 export function getDashboardTimezoneConfig(): DashboardTimezoneConfig {
-  const id = safeTimezone(Deno.env.get("DASHBOARD_TIMEZONE") ?? "UTC");
+  const id = safeTimezone(DASHBOARD_TIMEZONE.id);
   return {
     id,
-    short: Deno.env.get("DASHBOARD_TIMEZONE_SHORT") ?? "UTC",
-    name: Deno.env.get("DASHBOARD_TIMEZONE_NAME") ??
-      "Coordinated Universal Time",
-    utcLabel: Deno.env.get("DASHBOARD_TIMEZONE_UTC_LABEL") ?? "UTC/GMT +0",
+    short: DASHBOARD_TIMEZONE.short,
+    name: DASHBOARD_TIMEZONE.name,
+    utcLabel: DASHBOARD_TIMEZONE.utcLabel,
   };
 }
 

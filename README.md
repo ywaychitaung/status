@@ -11,12 +11,12 @@ updates to the UI, and sends alerts to Discord/Telegram.
 - Scheduled checks with `Deno.cron` (every minute)
 - Status persistence with `Deno.Kv`
 - Realtime dashboard refresh via `Deno.Kv.watch()` + SSE
-- Timezone-aware timestamps
+- Timezone-aware timestamps (Singapore Time by default)
 - Dark mode toggle (header button + `d` keyboard shortcut)
+- Dashboard, Services, and Incidents pages
 - Alerting with native `fetch`:
   - Discord webhook
   - Telegram bot API
-- Configurable alert rules for down/recovery + down alert interval
 
 ## Tech Stack
 
@@ -27,29 +27,33 @@ updates to the UI, and sends alerts to Discord/Telegram.
 
 ## Environment Variables
 
+Only alert channel secrets come from `.env`. Everything else (app name,
+timezone, alert rules, check interval) lives in `lib/constants.ts`.
+
 Create and configure `.env`:
 
 ```env
-APP_NAME="Status"
-
-DASHBOARD_TIMEZONE=Asia/Singapore
-DASHBOARD_TIMEZONE_SHORT=SGT
-DASHBOARD_TIMEZONE_NAME="Singapore Time"
-DASHBOARD_TIMEZONE_UTC_LABEL="UTC/GMT +8"
-
 ALERT_DISCORD_WEBHOOK_URL=
 ALERT_TELEGRAM_BOT_TOKEN=
 ALERT_TELEGRAM_CHAT_ID=
-
-ALERT_ON_DOWN=true
-ALERT_ON_RECOVERY=true
-ALERT_DOWN_INTERVAL_MINUTES=60
 ```
 
 Notes:
 
 - Leave Discord/Telegram fields empty if you do not want that channel.
-- `ALERT_DOWN_INTERVAL_MINUTES` throttles repeated down alerts per monitor.
+- Edit `lib/constants.ts` to change app name, timezone, alert thresholds, and
+  related settings.
+
+## App Constants
+
+Configured in `lib/constants.ts`, including:
+
+- `APP_NAME`, `APP_VERSION`, `APP_TAGLINE`
+- `DASHBOARD_TIMEZONE` (Singapore Time / SGT)
+- `ALERTS.onDown`, `ALERTS.onRecovery`
+- `ALERTS.downIntervalMinutes` (throttles repeated down alerts)
+- `ALERTS.downConsecutive` (failures required before a down alert)
+- `MONITOR` schedule labels and cron expression
 
 ## Getting Discord Webhook + Telegram Chat ID
 
@@ -105,10 +109,10 @@ deno task start
 
 ## How Alerts Work
 
-- Non-200 checks trigger down alerts (throttled by
-  `ALERT_DOWN_INTERVAL_MINUTES`)
-- Recovery to 200 triggers recovery alerts when enabled
-- `ALERT_ON_DOWN` and `ALERT_ON_RECOVERY` control each transition type
+- Non-200 checks trigger down alerts after `ALERTS.downConsecutive` failures
+- Repeated down alerts are throttled by `ALERTS.downIntervalMinutes`
+- Recovery to 200 triggers recovery alerts when `ALERTS.onRecovery` is enabled
+- `ALERTS.onDown` and `ALERTS.onRecovery` control each transition type
 
 ## Monitored Sites
 

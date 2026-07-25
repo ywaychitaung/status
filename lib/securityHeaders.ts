@@ -1,5 +1,14 @@
+/** Fresh stores the render nonce on the Response under this symbol. */
+const FRESH_NONCE = Symbol.for("__freshNonce");
+
 /** Apply baseline browser security headers to every response. */
-export function applySecurityHeaders(headers: Headers): void {
+export function applySecurityHeaders(response: Response): void {
+  const headers = response.headers;
+  const nonce = (response as Response & { [FRESH_NONCE]?: string })[FRESH_NONCE];
+  const scriptSrc = nonce
+    ? `script-src 'self' 'nonce-${nonce}'`
+    : "script-src 'self' 'unsafe-inline'";
+
   headers.set(
     "Strict-Transport-Security",
     "max-age=31536000; includeSubDomains",
@@ -14,7 +23,7 @@ export function applySecurityHeaders(headers: Headers): void {
       "img-src 'self' data:",
       "font-src 'self'",
       "style-src 'self' 'unsafe-inline'",
-      "script-src 'self'",
+      scriptSrc,
       "connect-src 'self'",
       "object-src 'none'",
       "upgrade-insecure-requests",
