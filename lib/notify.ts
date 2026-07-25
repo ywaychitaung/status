@@ -21,6 +21,7 @@ function buildMessage(
   monitor: MonitorTarget,
   next: MonitorStatus,
   previousUp: boolean | null,
+  consecutiveDowns?: number,
 ): string {
   const state = next.up ? "RECOVERED" : "DOWN";
   const transition = previousUp === null
@@ -35,7 +36,7 @@ function buildMessage(
   const error = next.error ?? "None";
   const checkedAt = formatDashboardDatetime(next.checkedAt);
   const timezoneId = Deno.env.get("DASHBOARD_TIMEZONE")?.trim() || "UTC";
-  return [
+  const lines = [
     `Uptime alert: ${monitor.name} is ${state}`,
     `URL: ${monitor.url}`,
     `Status code: ${code}`,
@@ -44,7 +45,11 @@ function buildMessage(
     `Checked at: ${checkedAt}`,
     `Timezone: ${timezoneId}`,
     `Transition: ${transition}`,
-  ].join("\n");
+  ];
+  if (!next.up && consecutiveDowns != null) {
+    lines.push(`Consecutive failures: ${consecutiveDowns}`);
+  }
+  return lines.join("\n");
 }
 
 async function sendDiscord(text: string): Promise<void> {
@@ -84,6 +89,15 @@ function readDownAlertThrottleMs(
   return null;
 }
 
+function readConsecutiveDowns(
+  entry: Deno.KvEntryMaybe<number>,
+): number {
+  if (entry.versionstamp === null) return 0;
+  const v = entry.value;
+  if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
+  return 0;
+}
+
 async function sendTelegram(text: string): Promise<void> {
   const token = Deno.env.get("ALERT_TELEGRAM_BOT_TOKEN");
   const chatId = Deno.env.get("ALERT_TELEGRAM_CHAT_ID");
@@ -114,15 +128,15 @@ export async function notifyStatusChange(args: {
   const { kv, monitor, next, previousUp } = args;
   const alertOnDown = parseBooleanEnv("ALERT_ON_DOWN", true);
   const alertOnRecovery = parseBooleanEnv("ALERT_ON_RECOVERY", true);
-  const isDownTransition = previousUp !== false && next.up === false;
+  const consecutiveThreshold = parseNumberEnv("ALERT_DOWN_CONSECUTIVE", 5);
   const isRecoveryTransition = previousUp === false && next.up === true;
-  if (isDownTransition && !alertOnDown) return;
-  if (isRecoveryTransition && !alertOnRecovery) return;
-  if (!next.up && !alertOnDown) return;
-  if (next.up && !isRecoveryTransition) return;
 
-  const downIntervalMinutes = parseNumberEnv("ALERT_DOWN_INTERVAL_MINUTES", 60);
-  const downIntervalMs = downIntervalMinutes * 60_000;
+  const consecutiveKey: Deno.KvKey = [
+    "alert",
+    "down",
+    "consecutive",
+    monitor.id,
+  ];
   const downThrottleKey: Deno.KvKey = [
     "alert",
     "down",
@@ -130,11 +144,22 @@ export async function notifyStatusChange(args: {
     monitor.id,
   ];
 
-  // Throttle repeated DOWN alerts while the monitor stays failed (`up === false`).
-  // Use `next.up` (same as checkUrl), not `statusCode === 200`, so 204/304 etc. are
-  // not treated as outages. Persist throttle before sending so a crash after notify
-  // cannot cause one alert per cron tick.
+  // Track consecutive failures. A brief flap (e.g. D D D D U) resets the
+  // counter, so notifications only fire after enough downs in a row.
   if (!next.up) {
+    const consecutiveEntry = await kv.get<number>(consecutiveKey);
+    const consecutive = readConsecutiveDowns(consecutiveEntry) + 1;
+    await kv.set(consecutiveKey, consecutive);
+
+    if (!alertOnDown) return;
+    if (consecutive < consecutiveThreshold) return;
+
+    const downIntervalMinutes = parseNumberEnv("ALERT_DOWN_INTERVAL_MINUTES", 60);
+    const downIntervalMs = downIntervalMinutes * 60_000;
+
+    // Throttle repeated DOWN alerts while the monitor stays failed.
+    // Persist throttle before sending so a crash after notify cannot cause
+    // one alert per cron tick.
     const lastSent = await kv.get<number | DownAlertThrottle>(downThrottleKey);
     const nowMs = Date.now();
     const lastMs = readDownAlertThrottleMs(lastSent);
@@ -153,12 +178,20 @@ export async function notifyStatusChange(args: {
       return;
     }
 
-    const message = buildMessage(monitor, next, previousUp);
+    const message = buildMessage(monitor, next, previousUp, consecutive);
     await Promise.allSettled([sendDiscord(message), sendTelegram(message)]);
     return;
-  } else {
-    await kv.delete(downThrottleKey);
   }
+
+  // Recovery path: only notify if we had already crossed the consecutive
+  // threshold (i.e. a real confirmed outage, not a short flap).
+  const consecutiveEntry = await kv.get<number>(consecutiveKey);
+  const consecutive = readConsecutiveDowns(consecutiveEntry);
+  const wasConfirmedDown = consecutive >= consecutiveThreshold;
+  await kv.delete(consecutiveKey);
+  await kv.delete(downThrottleKey);
+
+  if (!wasConfirmedDown || !isRecoveryTransition || !alertOnRecovery) return;
 
   const message = buildMessage(monitor, next, previousUp);
   await Promise.allSettled([sendDiscord(message), sendTelegram(message)]);
