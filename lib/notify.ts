@@ -1,5 +1,6 @@
 import type { MonitorStatus, MonitorTarget } from "@/lib/monitor.ts";
 import { formatDashboardDatetime } from "@/lib/datetimeFormat.ts";
+import { DEFAULT_TIMEZONE } from "@/lib/constants.ts";
 
 function parseBooleanEnv(name: string, defaultValue: boolean): boolean {
   const raw = Deno.env.get(name);
@@ -35,7 +36,8 @@ function buildMessage(
     : `${next.responseTimeMs} ms`;
   const error = next.error ?? "None";
   const checkedAt = formatDashboardDatetime(next.checkedAt);
-  const timezoneId = Deno.env.get("DASHBOARD_TIMEZONE")?.trim() || "UTC";
+  const timezoneId = Deno.env.get("DASHBOARD_TIMEZONE")?.trim() ||
+    DEFAULT_TIMEZONE.id;
   const lines = [
     `Uptime alert: ${monitor.name} is ${state}`,
     `URL: ${monitor.url}`,
@@ -94,7 +96,9 @@ function readConsecutiveDowns(
 ): number {
   if (entry.versionstamp === null) return 0;
   const v = entry.value;
-  if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
+  if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+    return Math.floor(v);
+  }
   return 0;
 }
 
@@ -154,7 +158,10 @@ export async function notifyStatusChange(args: {
     if (!alertOnDown) return;
     if (consecutive < consecutiveThreshold) return;
 
-    const downIntervalMinutes = parseNumberEnv("ALERT_DOWN_INTERVAL_MINUTES", 60);
+    const downIntervalMinutes = parseNumberEnv(
+      "ALERT_DOWN_INTERVAL_MINUTES",
+      60,
+    );
     const downIntervalMs = downIntervalMinutes * 60_000;
 
     // Throttle repeated DOWN alerts while the monitor stays failed.

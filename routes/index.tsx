@@ -3,10 +3,32 @@ import {
   getDashboardTimezoneConfig,
 } from "@/lib/datetimeFormat.ts";
 import { getSnapshot } from "@/lib/kv.ts";
-import { Globe, ShieldCheck, ShieldX } from "lucide-preact";
+import {
+  Activity,
+  Clock3,
+  Gauge,
+  Globe,
+  ShieldCheck,
+  ShieldX,
+  Timer,
+  Zap,
+} from "lucide-preact";
 import { define } from "../utils.ts";
-import DashboardClient from "../islands/DashboardClient.tsx";
-import ThemeToggle from "../islands/ThemeToggle.tsx";
+import DashboardShell from "../components/DashboardShell.tsx";
+import ThemeToggle from "../components/ThemeToggle.tsx";
+import LiveClock from "../islands/LiveClock.tsx";
+import OutageTimer from "../islands/OutageTimer.tsx";
+import { LINKS, MONITOR } from "@/lib/constants.ts";
+
+const MONITOR_UP =
+  "group rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900/80 dark:hover:border-zinc-700";
+const MONITOR_DOWN =
+  "group rounded-2xl border border-red-200 bg-red-50/70 p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-red-900/50 dark:bg-red-950/35 dark:hover:border-red-800";
+
+const BADGE_UP =
+  "inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300";
+const BADGE_DOWN =
+  "inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-red-700 dark:bg-red-400/10 dark:text-red-300";
 
 export default define.page(async function Home() {
   const snapshot = await getSnapshot();
@@ -15,158 +37,370 @@ export default define.page(async function Home() {
   const totalWebsites = snapshot.statuses.length;
   const upWebsites = snapshot.statuses.filter((status) => status.up).length;
   const downWebsites = totalWebsites - upWebsites;
+  const allUp = downWebsites === 0 && totalWebsites > 0;
+  const healthLabel = allUp
+    ? "All systems operational"
+    : downWebsites === 1
+    ? "1 service is down"
+    : `${downWebsites} services are down`;
+
+  const latencySamples = snapshot.statuses
+    .map((status) => status.responseTimeMs)
+    .filter((ms): ms is number => ms !== null);
+  const avgLatency = latencySamples.length > 0
+    ? Math.round(
+      latencySamples.reduce((sum, ms) => sum + ms, 0) / latencySamples.length,
+    )
+    : null;
+  const maxLatency = latencySamples.length > 0
+    ? Math.max(...latencySamples)
+    : 1;
+  const availability = totalWebsites > 0
+    ? Math.round((upWebsites / totalWebsites) * 1000) / 10
+    : 0;
+
   return (
-    <div
-      id="dashboard-root"
-      class="relative min-h-screen bg-slate-50 px-4 pb-10 pt-24 text-slate-900 dark:bg-slate-950 dark:text-slate-100"
-      data-timezone-id={timezone.id}
+    <DashboardShell
+      active="dashboard"
+      title="Dashboard"
+      subtitle="Overview of monitored websites and live health"
+      timezoneName={timezone.name}
+      timezoneUtcLabel={timezone.utcLabel}
+      timezoneId={timezone.id}
+      timestamp={timestamp}
+      healthLabel={healthLabel}
+      allUp={allUp}
+      themeToggle={<ThemeToggle />}
+      liveClock={<LiveClock timezoneId={timezone.id} />}
     >
-      <div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_10%,rgba(16,185,129,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(59,130,246,0.12),transparent_35%)] dark:bg-[radial-gradient(circle_at_10%_10%,rgba(16,185,129,0.18),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(59,130,246,0.16),transparent_35%)]" />
-      <header class="fixed inset-x-0 top-0 z-50 border-b border-slate-200/80 bg-white/85 shadow-sm backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/75">
-        <div class="mx-auto flex h-16 w-full max-w-4xl items-center justify-between px-4">
-          <h1 class="text-base font-semibold tracking-tight sm:text-lg">
-            Uptime Monitor
-          </h1>
-          <ThemeToggle />
-        </div>
-      </header>
-      <main class="mx-auto w-full max-w-4xl space-y-8 rounded-3xl border border-white/70 bg-white/75 p-6 shadow-[0_20px_60px_-35px_rgba(2,6,23,0.45)] backdrop-blur dark:border-slate-800/80 dark:bg-slate-900/65 sm:p-8">
-        <section class="space-y-3">
-          <h1 class="text-3xl font-bold tracking-tight">
-            System Status
-          </h1>
-          <p class="text-slate-600 dark:text-slate-300">
-            Status for personal websites, checked every minute with Deno Cron +
-            KV.
-          </p>
-          <p class="text-sm text-slate-500 dark:text-slate-400">
-            Timezone: {timezone.name}, ({timezone.utcLabel})
-          </p>
-          <p class="text-sm text-slate-500 dark:text-slate-400">
-            Timestamp: <span id="current-timestamp">{timestamp}</span>
-          </p>
-        </section>
-
-        <section class="grid gap-3 sm:grid-cols-3">
-          <article class="rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm dark:border-slate-700/80 dark:bg-slate-900/60">
-            <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+      <section class="animate-rise grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <article class="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Monitored
+            </p>
+            <span class="rounded-lg bg-zinc-100 p-2 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               <Globe size={16} />
-              <p class="text-xs uppercase tracking-wide">Total Websites</p>
-            </div>
-            <p id="dashboard-stat-total" class="mt-2 text-2xl font-semibold">
-              {totalWebsites}
+            </span>
+          </div>
+          <p class="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+            {totalWebsites}
+          </p>
+          <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Active endpoints
+          </p>
+        </article>
+
+        <article class="rounded-2xl border border-emerald-200/80 bg-linear-to-br from-emerald-50 to-white p-5 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/40 dark:to-zinc-900/80">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-medium uppercase tracking-wider text-emerald-700/80 dark:text-emerald-300/80">
+              Online
             </p>
-          </article>
-          <article class="rounded-2xl border border-emerald-200/80 bg-emerald-50/80 p-4 shadow-sm dark:border-emerald-900/70 dark:bg-emerald-950/35">
-            <div class="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+            <span class="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-300">
               <ShieldCheck size={16} />
-              <p class="text-xs uppercase tracking-wide">Up</p>
-            </div>
-            <p
-              id="dashboard-stat-up"
-              class="mt-2 text-2xl font-semibold text-emerald-700 dark:text-emerald-300"
-            >
-              {upWebsites}
+            </span>
+          </div>
+          <p class="mt-4 text-3xl font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-300">
+            {upWebsites}
+          </p>
+          <p class="mt-1 text-xs text-emerald-700/70 dark:text-emerald-300/60">
+            Responding with 200
+          </p>
+        </article>
+
+        <article class="rounded-2xl border border-red-200/80 bg-linear-to-br from-red-50 to-white p-5 shadow-sm dark:border-red-900/40 dark:from-red-950/40 dark:to-zinc-900/80">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-medium uppercase tracking-wider text-red-700/80 dark:text-red-300/80">
+              Offline
             </p>
-          </article>
-          <article class="rounded-2xl border border-red-200/80 bg-red-50/80 p-4 shadow-sm dark:border-red-900/70 dark:bg-red-950/35">
-            <div class="flex items-center gap-2 text-red-700 dark:text-red-300">
+            <span class="rounded-lg bg-red-500/10 p-2 text-red-600 dark:text-red-300">
               <ShieldX size={16} />
-              <p class="text-xs uppercase tracking-wide">Down</p>
-            </div>
-            <p
-              id="dashboard-stat-down"
-              class="mt-2 text-2xl font-semibold text-red-700 dark:text-red-300"
-            >
-              {downWebsites}
+            </span>
+          </div>
+          <p class="mt-4 text-3xl font-semibold tracking-tight tabular-nums text-red-700 dark:text-red-300">
+            {downWebsites}
+          </p>
+          <p class="mt-1 text-xs text-red-700/70 dark:text-red-300/60">
+            Needs attention
+          </p>
+        </article>
+
+        <article class="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              Avg latency
             </p>
-          </article>
-        </section>
+            <span class="rounded-lg bg-sky-500/10 p-2 text-sky-600 dark:text-sky-300">
+              <Zap size={16} />
+            </span>
+          </div>
+          <p class="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+            {avgLatency !== null ? avgLatency : "—"}
+            {avgLatency !== null && (
+              <span class="ml-1 text-base font-medium text-zinc-400">ms</span>
+            )}
+          </p>
+          <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Across reachable hosts
+          </p>
+        </article>
+      </section>
 
-        <section class="space-y-3">
-          {snapshot.statuses.map((status) => (
-            <article
-              id={`monitor-${status.id}`}
-              key={status.id}
-              class={`rounded-2xl border p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-                status.up
-                  ? "border-emerald-300/80 bg-linear-to-br from-emerald-50 to-white dark:border-emerald-800/80 dark:from-emerald-950/40 dark:to-slate-900/70"
-                  : "border-red-300/80 bg-linear-to-br from-red-50 to-white dark:border-red-800/80 dark:from-red-950/40 dark:to-slate-900/70"
-              }`}
-            >
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <h2 class="text-lg font-semibold">{status.name}</h2>
-                  <a
-                    class="text-sm text-slate-600 underline underline-offset-4 dark:text-slate-300"
-                    href={status.url}
-                  >
-                    {status.url}
-                  </a>
-                </div>
-                <span
-                  class={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold tracking-wide ${
-                    status.up
-                      ? "border-emerald-500/30 bg-emerald-600 text-white"
-                      : "border-red-500/30 bg-red-600 text-white"
-                  }`}
-                  data-role="badge"
-                >
-                  {status.up ? "UP" : "DOWN"}
-                </span>
-              </div>
-              <div class="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-                <p>
-                  Status code:{" "}
-                  <span data-role="status-code">
-                    {status.statusCode ?? "N/A"}
-                  </span>
-                </p>
-                <p>
-                  Response time:{" "}
-                  <span data-role="response-time">
-                    {status.responseTimeMs !== null
-                      ? `${status.responseTimeMs} ms`
-                      : "N/A"}
-                  </span>
-                </p>
-                <p>
-                  Last checked:{" "}
-                  <span data-role="checked-at">
-                    {formatDashboardDatetime(status.checkedAt)}
-                  </span>
-                </p>
-              </div>
-              <p data-role="error" class="mt-3 text-red-700 dark:text-red-300">
-                {status.error ?? ""}
+      <section class="animate-rise-1 grid gap-4 lg:grid-cols-3">
+        <article class="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm lg:col-span-2 dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold tracking-tight">Availability</p>
+              <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Current snapshot health ratio
               </p>
-            </article>
-          ))}
-        </section>
-      </main>
+            </div>
+            <span class="rounded-lg bg-zinc-100 p-2 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              <Gauge size={16} />
+            </span>
+          </div>
+          <div class="mt-6 flex items-end gap-3">
+            <p class="text-4xl font-semibold tracking-tight tabular-nums">
+              {availability}
+              <span class="text-xl text-zinc-400">%</span>
+            </p>
+            <p class="mb-1 text-sm text-zinc-500 dark:text-zinc-400">
+              {upWebsites}/{totalWebsites} services up
+            </p>
+          </div>
+          <div class="mt-4 h-3 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+            <div
+              class={`h-full rounded-full transition-all duration-500 ${
+                allUp ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+              style={{ width: `${Math.min(availability, 100)}%` }}
+            />
+          </div>
+        </article>
 
-      <footer class="mx-auto mt-6 flex w-full max-w-4xl items-center justify-between rounded-2xl border border-slate-200/80 bg-white/70 px-5 py-4 text-xs text-slate-500 shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-slate-900/60 dark:text-slate-400">
-        <p class="text-xs text-slate-500 dark:text-slate-400">
-          Press{" "}
-          <kbd class="rounded border border-slate-300 px-1.5 py-0.5 dark:border-slate-600">
-            d
-          </kbd>{" "}
-          to toggle dark theme
-        </p>
-        <p>
-          Made with 💚 by{" "}
-          <a
-            href="https://ywaychitaung.dev"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-slate-600 dark:text-slate-300 hover:text-green-500"
+        <article class="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold tracking-tight">
+                Since last outage
+              </p>
+              <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Continuous uptime clock
+              </p>
+            </div>
+            <span class="rounded-lg bg-zinc-100 p-2 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              <Timer size={16} />
+            </span>
+          </div>
+          <div
+            id="outage-timer"
+            class="mt-6"
+            data-last-outage-at={snapshot.summary.lastOutageAt ?? ""}
           >
-            Yway Chit Aung
-          </a>
-        </p>
-      </footer>
+            <OutageTimer lastOutageAt={snapshot.summary.lastOutageAt} />
+          </div>
+        </article>
+      </section>
 
-      <DashboardClient timezoneId={timezone.id} />
-    </div>
+      <section class="animate-rise-2 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
+        <div class="space-y-4">
+          <div class="flex items-end justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-semibold tracking-tight">
+                Service monitors
+              </h2>
+              <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Live checks every minute via Deno Cron + KV
+              </p>
+            </div>
+            <a
+              href={LINKS.services}
+              class="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+            >
+              View all
+            </a>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            {snapshot.statuses.map((status) => {
+              const latencyPct = status.responseTimeMs != null && maxLatency > 0
+                ? Math.max(
+                  8,
+                  Math.round((status.responseTimeMs / maxLatency) * 100),
+                )
+                : 0;
+
+              return (
+                <article
+                  key={status.id}
+                  class={status.up ? MONITOR_UP : MONITOR_DOWN}
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span
+                          class={`h-2 w-2 shrink-0 rounded-full ${
+                            status.up ? "bg-emerald-500" : "bg-red-500"
+                          }`}
+                        />
+                        <h3 class="truncate text-[15px] font-semibold tracking-tight">
+                          {status.name}
+                        </h3>
+                      </div>
+                      <a
+                        class="mt-1.5 block truncate text-xs text-zinc-500 transition-colors hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400"
+                        href={status.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {status.url.replace(/^https?:\/\//, "")}
+                      </a>
+                    </div>
+                    <span class={status.up ? BADGE_UP : BADGE_DOWN}>
+                      <span
+                        class={`h-1.5 w-1.5 rounded-full ${
+                          status.up ? "bg-emerald-500" : "bg-red-500"
+                        }`}
+                      />
+                      {status.up ? "Up" : "Down"}
+                    </span>
+                  </div>
+
+                  <div class="mt-5 grid grid-cols-2 gap-3 text-xs">
+                    <div class="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-zinc-950/50">
+                      <p class="text-zinc-400 dark:text-zinc-500">
+                        Status code
+                      </p>
+                      <p class="mt-1 text-sm font-semibold tabular-nums">
+                        {status.statusCode ?? "N/A"}
+                      </p>
+                    </div>
+                    <div class="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-zinc-950/50">
+                      <p class="text-zinc-400 dark:text-zinc-500">Response</p>
+                      <p class="mt-1 text-sm font-semibold tabular-nums">
+                        {status.responseTimeMs !== null
+                          ? `${status.responseTimeMs} ms`
+                          : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4">
+                    <div class="mb-1.5 flex items-center justify-between text-[11px] text-zinc-400">
+                      <span>Latency load</span>
+                      <span>{formatDashboardDatetime(status.checkedAt)}</span>
+                    </div>
+                    <div class="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                      <div
+                        class={`h-full rounded-full transition-all ${
+                          status.up ? "bg-sky-500" : "bg-red-400"
+                        }`}
+                        style={{ width: `${latencyPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {status.error && (
+                    <p class="mt-3 text-xs text-red-600 dark:text-red-300">
+                      {status.error}
+                    </p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        </div>
+
+        <aside class="animate-rise-3 space-y-4">
+          <article class="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+            <div class="flex items-center gap-2">
+              <Clock3 size={16} class="text-zinc-500" />
+              <p class="text-sm font-semibold tracking-tight">Check schedule</p>
+            </div>
+            <dl class="mt-4 space-y-3 text-sm">
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-zinc-500 dark:text-zinc-400">Interval</dt>
+                <dd class="font-medium">{MONITOR.intervalLabel}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-zinc-500 dark:text-zinc-400">Engine</dt>
+                <dd class="font-medium">{MONITOR.engine}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-zinc-500 dark:text-zinc-400">Storage</dt>
+                <dd class="font-medium">{MONITOR.storage}</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-zinc-500 dark:text-zinc-400">Stream</dt>
+                <dd class="font-medium">{MONITOR.stream}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+            <div class="flex items-center gap-2">
+              <Activity size={16} class="text-zinc-500" />
+              <p class="text-sm font-semibold tracking-tight">
+                Latency ranking
+              </p>
+            </div>
+            <ul class="mt-4 space-y-3">
+              {[...snapshot.statuses]
+                .sort((a, b) =>
+                  (a.responseTimeMs ?? 999999) - (b.responseTimeMs ?? 999999)
+                )
+                .map((status) => {
+                  const pct = status.responseTimeMs != null && maxLatency > 0
+                    ? Math.max(
+                      6,
+                      Math.round((status.responseTimeMs / maxLatency) * 100),
+                    )
+                    : 0;
+                  return (
+                    <li key={`rank-${status.id}`}>
+                      <div class="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span class="truncate font-medium">{status.name}</span>
+                        <span class="tabular-nums text-zinc-500 dark:text-zinc-400">
+                          {status.responseTimeMs != null
+                            ? `${status.responseTimeMs} ms`
+                            : "N/A"}
+                        </span>
+                      </div>
+                      <div class="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                        <div
+                          class={`h-full rounded-full ${
+                            status.up ? "bg-emerald-500" : "bg-red-400"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          </article>
+
+          <article
+            class={`rounded-2xl border p-5 shadow-sm ${
+              allUp
+                ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30"
+                : "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30"
+            }`}
+          >
+            <p class="text-sm font-semibold tracking-tight">System verdict</p>
+            <p class="mt-2 text-sm leading-relaxed text-current/80">
+              {healthLabel}. Checks run every minute and push live updates over
+              SSE.
+            </p>
+            <a
+              href={LINKS.incidents}
+              class="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline"
+            >
+              Open incidents →
+            </a>
+          </article>
+        </aside>
+      </section>
+    </DashboardShell>
   );
 });

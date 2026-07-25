@@ -49,7 +49,7 @@ export default function OutageTimer({ lastOutageAt }: OutageTimerProps) {
   }, [latestOutage, now]);
 
   return (
-    <p class="text-xl font-semibold text-slate-900 dark:text-slate-100">
+    <p class="text-2xl font-semibold tracking-tight tabular-nums text-zinc-900 dark:text-zinc-50 sm:text-3xl">
       {label}
     </p>
   );

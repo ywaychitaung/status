@@ -1,11 +1,127 @@
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
-.fresh-gradient {
-  background-color: rgb(134, 239, 172);
-  background-image: linear-gradient(
-    to right bottom,
-    rgb(219, 234, 254),
-    rgb(187, 247, 208),
-    rgb(254, 249, 195)
+@custom-variant dark (&:is(.dark, .dark *));
+
+@font-face {
+  font-family: "Sora";
+  src: url("/fonts/sora-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sora";
+  src: url("/fonts/sora-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sora";
+  src: url("/fonts/sora-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sora";
+  src: url("/fonts/sora-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Sora", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-rise-1 {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+.animate-rise-2 {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.animate-rise-3 {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.bg-dashboard {
+  background-color: #f4f4f5;
+  background-image:
+    radial-gradient(
+      ellipse 80% 50% at 0% -10%,
+      rgba(16, 185, 129, 0.14),
+      transparent
+    ),
+    radial-gradient(
+    ellipse 60% 40% at 100% 0%,
+    rgba(59, 130, 246, 0.1),
+    transparent
   );
+}
+
+.dark .bg-dashboard {
+  background-color: #09090b;
+  background-image:
+    radial-gradient(
+      ellipse 80% 50% at 0% -10%,
+      rgba(16, 185, 129, 0.12),
+      transparent
+    ),
+    radial-gradient(
+    ellipse 60% 40% at 100% 0%,
+    rgba(59, 130, 246, 0.08),
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-rise-1,
+  .animate-rise-2,
+  .animate-rise-3,
+  .animate-pulse-dot {
+    animation: none;
+  }
 }
