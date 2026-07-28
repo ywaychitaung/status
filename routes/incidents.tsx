@@ -3,7 +3,7 @@ import {
   getDashboardTimezoneConfig,
 } from "@/lib/datetimeFormat.ts";
 import { getSnapshot } from "@/lib/kv.ts";
-import { AlertTriangle, CheckCircle2, Timer } from "lucide-preact";
+import { AlertTriangle, CheckCircle2, History, Timer } from "lucide-preact";
 import { define } from "../utils.ts";
 import DashboardShell from "../components/DashboardShell.tsx";
 import ThemeToggle from "../components/ThemeToggle.tsx";
@@ -11,11 +11,34 @@ import LiveClock from "../islands/LiveClock.tsx";
 import OutageTimer from "../islands/OutageTimer.tsx";
 import { AUTHOR, SUPPORT } from "@/lib/constants.ts";
 
+function formatIncidentDuration(
+  startedAt: string,
+  resolvedAt: string | null,
+): string {
+  const endMs = resolvedAt
+    ? new Date(resolvedAt).getTime()
+    : Date.now();
+  const ms = endMs - new Date(startedAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+
+  const totalSec = Math.floor(ms / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+
+  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
 export default define.page(async function IncidentsPage() {
   const snapshot = await getSnapshot();
   const timezone = getDashboardTimezoneConfig();
   const timestamp = formatDashboardDatetime(new Date().toISOString());
   const downServices = snapshot.statuses.filter((s) => !s.up);
+  const previousIncidents = snapshot.incidents;
   const total = snapshot.statuses.length;
   const upCount = total - downServices.length;
   const allUp = downServices.length === 0 && total > 0;
@@ -168,6 +191,146 @@ export default define.page(async function IncidentsPage() {
       </section>
 
       <section class="animate-rise-1 rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold tracking-tight">
+              Previous incidents
+            </p>
+            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              All recorded outages, newest first
+            </p>
+          </div>
+          <span class="rounded-lg bg-zinc-100 p-2 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            <History size={16} />
+          </span>
+        </div>
+
+        {previousIncidents.length === 0
+          ? (
+            <div class="mt-6 rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/70 px-5 py-8 text-center dark:border-zinc-800 dark:bg-zinc-950/40">
+              <p class="text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                No previous incidents yet
+              </p>
+              <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Past outages will show up here once they occur.
+              </p>
+            </div>
+          )
+          : (
+            <ul class="mt-6 space-y-3">
+              {previousIncidents.map((incident) => {
+                const isOpen = incident.resolvedAt === null;
+                return (
+                  <li
+                    key={incident.id}
+                    class={`rounded-2xl border p-4 ${
+                      isOpen
+                        ? "border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-950/25"
+                        : "border-zinc-200/90 bg-zinc-50/60 dark:border-zinc-800 dark:bg-zinc-950/40"
+                    }`}
+                  >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span
+                            class={`h-2 w-2 rounded-full ${
+                              isOpen ? "bg-red-500" : "bg-emerald-500"
+                            }`}
+                          />
+                          <p class="font-semibold tracking-tight">
+                            {incident.name}
+                          </p>
+                        </div>
+                        <a
+                          href={incident.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class={`mt-1 block truncate text-xs hover:underline ${
+                            isOpen
+                              ? "text-red-700/70 dark:text-red-300/70"
+                              : "text-zinc-500 dark:text-zinc-400"
+                          }`}
+                        >
+                          {incident.url.replace(/^https?:\/\//, "")}
+                        </a>
+                      </div>
+                      <span
+                        class={`rounded-lg px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ${
+                          isOpen
+                            ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        }`}
+                      >
+                        {isOpen ? "Ongoing" : "Resolved"}
+                      </span>
+                    </div>
+                    <dl class="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <dt
+                          class={isOpen
+                            ? "text-red-700/60 dark:text-red-300/50"
+                            : "text-zinc-500 dark:text-zinc-400"}
+                        >
+                          Started
+                        </dt>
+                        <dd class="mt-1 font-semibold">
+                          {formatDashboardDatetime(incident.startedAt)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt
+                          class={isOpen
+                            ? "text-red-700/60 dark:text-red-300/50"
+                            : "text-zinc-500 dark:text-zinc-400"}
+                        >
+                          Resolved
+                        </dt>
+                        <dd class="mt-1 font-semibold">
+                          {incident.resolvedAt
+                            ? formatDashboardDatetime(incident.resolvedAt)
+                            : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt
+                          class={isOpen
+                            ? "text-red-700/60 dark:text-red-300/50"
+                            : "text-zinc-500 dark:text-zinc-400"}
+                        >
+                          Duration
+                        </dt>
+                        <dd class="mt-1 font-semibold tabular-nums">
+                          {formatIncidentDuration(
+                            incident.startedAt,
+                            incident.resolvedAt,
+                          )}
+                          {isOpen ? " so far" : ""}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt
+                          class={isOpen
+                            ? "text-red-700/60 dark:text-red-300/50"
+                            : "text-zinc-500 dark:text-zinc-400"}
+                        >
+                          Last error
+                        </dt>
+                        <dd class="mt-1 font-medium">
+                          {incident.error ||
+                            (incident.statusCode != null
+                              ? `Status ${incident.statusCode}`
+                              : "Non-success response")}
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+      </section>
+
+      <section class="animate-rise-2 rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
         <p class="text-sm font-semibold tracking-tight">Incident notes</p>
         <ul class="mt-4 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
           <li class="flex gap-2">

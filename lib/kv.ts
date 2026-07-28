@@ -1,4 +1,7 @@
 import {
+  INCIDENT_HISTORY_KEY,
+  INCIDENT_HISTORY_LIMIT,
+  type IncidentRecord,
   monitorKey,
   MONITORS,
   type MonitorStatus,
@@ -19,6 +22,39 @@ export function getKv() {
 function trimError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function incidentActivityAt(incident: IncidentRecord): string {
+  return incident.resolvedAt ?? incident.startedAt;
+}
+
+function sortIncidentsNewestFirst(
+  incidents: IncidentRecord[],
+): IncidentRecord[] {
+  return [...incidents].sort((a, b) =>
+    incidentActivityAt(b).localeCompare(incidentActivityAt(a))
+  );
+}
+
+async function readIncidentHistory(kv: Deno.Kv): Promise<IncidentRecord[]> {
+  const current = await kv.get<IncidentRecord[]>(INCIDENT_HISTORY_KEY);
+  return current.value ?? [];
+}
+
+async function writeIncidentHistory(
+  kv: Deno.Kv,
+  incidents: IncidentRecord[],
+): Promise<IncidentRecord[]> {
+  const next = sortIncidentsNewestFirst(incidents).slice(
+    0,
+    INCIDENT_HISTORY_LIMIT,
+  );
+  await kv.set(INCIDENT_HISTORY_KEY, next);
+  return next;
+}
+
+async function getIncidentHistory(kv: Deno.Kv): Promise<IncidentRecord[]> {
+  return sortIncidentsNewestFirst(await readIncidentHistory(kv));
 }
 
 async function checkUrl(url: string): Promise<{
@@ -67,6 +103,63 @@ async function getSummary(kv: Deno.Kv): Promise<MonitorSummary> {
   };
 }
 
+async function openIncident(
+  kv: Deno.Kv,
+  monitor: { id: string; name: string; url: string },
+  now: string,
+  result: {
+    statusCode: number | null;
+    error: string | null;
+  },
+): Promise<void> {
+  const history = await readIncidentHistory(kv);
+  const openIndex = history.findIndex(
+    (incident) =>
+      incident.monitorId === monitor.id && incident.resolvedAt === null,
+  );
+
+  if (openIndex >= 0) {
+    history[openIndex] = {
+      ...history[openIndex],
+      statusCode: result.statusCode,
+      error: result.error,
+    };
+    await writeIncidentHistory(kv, history);
+    return;
+  }
+
+  const incident: IncidentRecord = {
+    id: `${monitor.id}-${now}`,
+    monitorId: monitor.id,
+    name: monitor.name,
+    url: monitor.url,
+    startedAt: now,
+    resolvedAt: null,
+    statusCode: result.statusCode,
+    error: result.error,
+  };
+  await writeIncidentHistory(kv, [incident, ...history]);
+}
+
+async function resolveIncident(
+  kv: Deno.Kv,
+  monitorId: string,
+  now: string,
+): Promise<void> {
+  const history = await readIncidentHistory(kv);
+  const openIndex = history.findIndex(
+    (incident) =>
+      incident.monitorId === monitorId && incident.resolvedAt === null,
+  );
+  if (openIndex < 0) return;
+
+  history[openIndex] = {
+    ...history[openIndex],
+    resolvedAt: now,
+  };
+  await writeIncidentHistory(kv, history);
+}
+
 export async function runChecks() {
   const kv = await getKv();
   const now = new Date().toISOString();
@@ -76,9 +169,18 @@ export async function runChecks() {
     const result = await checkUrl(monitor.url);
     const key = monitorKey(monitor.id);
     const previous = await kv.get<MonitorStatus>(key);
+    const previousUp = previous.value?.up ?? null;
+    const becameDown = previousUp !== false && result.up === false;
+    const becameUp = previousUp === false && result.up === true;
 
-    if (previous.value?.up !== false && result.up === false) {
+    if (becameDown) {
       summary.lastOutageAt = now;
+      await openIncident(kv, monitor, now, result);
+    } else if (!result.up) {
+      // Persist / refresh the open record while the outage continues.
+      await openIncident(kv, monitor, now, result);
+    } else if (becameUp) {
+      await resolveIncident(kv, monitor.id, now);
     }
 
     const status: MonitorStatus = {
@@ -93,7 +195,7 @@ export async function runChecks() {
       kv,
       monitor,
       next: status,
-      previousUp: previous.value?.up ?? null,
+      previousUp,
     });
   }
 
@@ -104,6 +206,7 @@ export async function runChecks() {
 export async function getSnapshot(): Promise<{
   statuses: MonitorStatus[];
   summary: MonitorSummary;
+  incidents: IncidentRecord[];
 }> {
   const kv = await getKv();
 
@@ -125,5 +228,6 @@ export async function getSnapshot(): Promise<{
   }
 
   const summary = await getSummary(kv);
-  return { statuses, summary };
+  const incidents = await getIncidentHistory(kv);
+  return { statuses, summary, incidents };
 }

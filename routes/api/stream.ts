@@ -1,5 +1,10 @@
 import { getKv, getSnapshot } from "@/lib/kv.ts";
-import { monitorKey, MONITORS, SUMMARY_KEY } from "@/lib/monitor.ts";
+import {
+  INCIDENT_HISTORY_KEY,
+  monitorKey,
+  MONITORS,
+  SUMMARY_KEY,
+} from "@/lib/monitor.ts";
 
 function ssePayload(event: string, data: unknown): Uint8Array {
   const body = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -11,6 +16,7 @@ export const handler = async () => {
   const watchKeys: Deno.KvKey[] = [
     ...MONITORS.map((monitor) => monitorKey(monitor.id)),
     SUMMARY_KEY,
+    INCIDENT_HISTORY_KEY,
   ];
   const stream = kv.watch(watchKeys);
 

@@ -20,6 +20,19 @@ export interface MonitorSummary {
   lastOutageAt: string | null;
 }
 
+/** Incident history entry stored in KV (open or resolved). */
+export interface IncidentRecord {
+  id: string;
+  monitorId: string;
+  name: string;
+  url: string;
+  startedAt: string;
+  /** Null while the outage is still ongoing. */
+  resolvedAt: string | null;
+  statusCode: number | null;
+  error: string | null;
+}
+
 export const MONITORS: MonitorTarget[] = [
   {
     id: "ywaychitaung-dev",
@@ -48,3 +61,7 @@ export function monitorKey(id: string): Deno.KvKey {
 }
 
 export const SUMMARY_KEY: Deno.KvKey = ["summary"];
+export const INCIDENT_HISTORY_KEY: Deno.KvKey = ["incidents", "history"];
+
+/** Max incident records retained in KV (newest kept). */
+export const INCIDENT_HISTORY_LIMIT = 50;
