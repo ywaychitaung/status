@@ -1,6 +1,7 @@
 import type { MonitorStatus, MonitorTarget } from "@/lib/monitor.ts";
 import { formatDashboardDatetime } from "@/lib/datetimeFormat.ts";
 import { ALERTS, DASHBOARD_TIMEZONE } from "@/lib/constants.ts";
+import { getSql } from "@/lib/db.ts";
 
 function buildMessage(
   monitor: MonitorTarget,
@@ -51,39 +52,6 @@ async function sendDiscord(text: string): Promise<void> {
   }
 }
 
-/** Stored at `downThrottleKey` so KV always round-trips a structured value. */
-type DownAlertThrottle = { sentAt: number };
-
-function readDownAlertThrottleMs(
-  entry: Deno.KvEntryMaybe<number | DownAlertThrottle>,
-): number | null {
-  if (entry.versionstamp === null) return null;
-  const v = entry.value as unknown;
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "bigint") return Number(v);
-  if (
-    v !== null &&
-    typeof v === "object" &&
-    "sentAt" in v &&
-    typeof (v as DownAlertThrottle).sentAt === "number" &&
-    Number.isFinite((v as DownAlertThrottle).sentAt)
-  ) {
-    return (v as DownAlertThrottle).sentAt;
-  }
-  return null;
-}
-
-function readConsecutiveDowns(
-  entry: Deno.KvEntryMaybe<number>,
-): number {
-  if (entry.versionstamp === null) return 0;
-  const v = entry.value;
-  if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
-    return Math.floor(v);
-  }
-  return 0;
-}
-
 async function sendTelegram(text: string): Promise<void> {
   const token = Deno.env.get("ALERT_TELEGRAM_BOT_TOKEN")?.trim();
   const chatId = Deno.env.get("ALERT_TELEGRAM_CHAT_ID")?.trim();
@@ -105,74 +73,75 @@ async function sendTelegram(text: string): Promise<void> {
   }
 }
 
+async function ensureAlertState(monitorId: string): Promise<void> {
+  const sql = await getSql();
+  await sql`
+    INSERT INTO alert_states (monitor_id, consecutive_downs)
+    VALUES (${monitorId}, 0)
+    ON CONFLICT (monitor_id) DO NOTHING
+  `;
+}
+
 export async function notifyStatusChange(args: {
-  kv: Deno.Kv;
   monitor: MonitorTarget;
   next: MonitorStatus;
   previousUp: boolean | null;
 }) {
-  const { kv, monitor, next, previousUp } = args;
+  const { monitor, next, previousUp } = args;
   const { onDown, onRecovery, downConsecutive, downIntervalMinutes } = ALERTS;
   const isRecoveryTransition = previousUp === false && next.up === true;
+  const sql = await getSql();
+  await ensureAlertState(monitor.id);
 
-  const consecutiveKey: Deno.KvKey = [
-    "alert",
-    "down",
-    "consecutive",
-    monitor.id,
-  ];
-  const downThrottleKey: Deno.KvKey = [
-    "alert",
-    "down",
-    "last_sent",
-    monitor.id,
-  ];
-
-  // Track consecutive failures. A brief flap (e.g. D D D D U) resets the
-  // counter, so notifications only fire after enough downs in a row.
   if (!next.up) {
-    const consecutiveEntry = await kv.get<number>(consecutiveKey);
-    const consecutive = readConsecutiveDowns(consecutiveEntry) + 1;
-    await kv.set(consecutiveKey, consecutive);
+    const rows = await sql<{ consecutive_downs: number }[]>`
+      UPDATE alert_states
+      SET consecutive_downs = consecutive_downs + 1
+      WHERE monitor_id = ${monitor.id}
+      RETURNING consecutive_downs
+    `;
+    const consecutive = rows[0]?.consecutive_downs ?? 1;
 
     if (!onDown) return;
     if (consecutive < downConsecutive) return;
 
     const downIntervalMs = downIntervalMinutes * 60_000;
-
-    // Throttle repeated DOWN alerts while the monitor stays failed.
-    // Persist throttle before sending so a crash after notify cannot cause
-    // one alert per cron tick.
-    const lastSent = await kv.get<number | DownAlertThrottle>(downThrottleKey);
     const nowMs = Date.now();
-    const lastMs = readDownAlertThrottleMs(lastSent);
-    const age = lastMs === null ? Infinity : nowMs - lastMs;
-    if (lastMs !== null && age >= 0 && age < downIntervalMs) {
-      return;
-    }
 
-    // Claim the send slot in one commit so overlapping cron retries / isolates
-    // cannot all pass the time check and each fire a webhook in the same window.
-    const committed = await kv.atomic()
-      .check(lastSent)
-      .set(downThrottleKey, { sentAt: nowMs })
-      .commit();
-    if (!committed.ok) {
-      return;
-    }
+    // Claim the send slot in one statement so overlapping cron ticks cannot
+    // each fire a webhook in the same throttle window.
+    const claimed = await sql<{ monitor_id: string }[]>`
+      UPDATE alert_states
+      SET last_down_alert_at = ${new Date(nowMs).toISOString()}
+      WHERE monitor_id = ${monitor.id}
+        AND (
+          last_down_alert_at IS NULL
+          OR last_down_alert_at <= ${new Date(nowMs - downIntervalMs).toISOString()}
+        )
+      RETURNING monitor_id
+    `;
+    if (claimed.length === 0) return;
 
     const message = buildMessage(monitor, next, previousUp, consecutive);
     await Promise.allSettled([sendDiscord(message), sendTelegram(message)]);
     return;
   }
 
-  // Recovery path: only notify if we had already crossed the consecutive
-  // threshold (i.e. a real confirmed outage, not a short flap).
-  const consecutiveEntry = await kv.get<number>(consecutiveKey);
-  const consecutive = readConsecutiveDowns(consecutiveEntry);
+  const stateRows = await sql<{ consecutive_downs: number }[]>`
+    SELECT consecutive_downs
+    FROM alert_states
+    WHERE monitor_id = ${monitor.id}
+    LIMIT 1
+  `;
+  const consecutive = stateRows[0]?.consecutive_downs ?? 0;
   const wasConfirmedDown = consecutive >= downConsecutive;
-  await kv.delete(consecutiveKey);
-  await kv.delete(downThrottleKey);
+
+  await sql`
+    UPDATE alert_states
+    SET consecutive_downs = 0,
+        last_down_alert_at = NULL
+    WHERE monitor_id = ${monitor.id}
+  `;
 
   if (!wasConfirmedDown || !isRecoveryTransition || !onRecovery) return;
 

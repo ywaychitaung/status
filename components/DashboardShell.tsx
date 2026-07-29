@@ -1,5 +1,4 @@
 import type { ComponentChildren } from "preact";
-import { Activity, LayoutDashboard, Server } from "lucide-preact";
 import {
   APP_NAME,
   APP_TAGLINE,
@@ -8,8 +7,11 @@ import {
   LINKS,
   THEME,
 } from "@/lib/constants.ts";
+import DashboardNav, {
+  type DashboardNavId,
+} from "../islands/DashboardNav.tsx";
 
-export type DashboardNavId = "dashboard" | "services" | "incidents";
+export type { DashboardNavId };
 
 interface DashboardShellProps {
   active: DashboardNavId;
@@ -23,34 +25,11 @@ interface DashboardShellProps {
   allUp: boolean;
   themeToggle: ComponentChildren;
   liveClock: ComponentChildren;
+  /** Header auth controls island (login modal, logout, toasts). */
+  authControls: ComponentChildren;
+  /** Decrypted display name when signed in; null when signed out. */
+  authName?: string | null;
   children: ComponentChildren;
-}
-
-const NAV = [
-  {
-    id: "dashboard" as const,
-    href: LINKS.home,
-    label: "Dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    id: "services" as const,
-    href: LINKS.services,
-    label: "Services",
-    icon: Server,
-  },
-  {
-    id: "incidents" as const,
-    href: LINKS.incidents,
-    label: "Incidents",
-    icon: Activity,
-  },
-];
-
-function navClass(active: boolean): string {
-  return active
-    ? "flex items-center gap-2.5 rounded-xl bg-zinc-900 px-3 py-2.5 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-    : "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100";
 }
 
 function BrandMark({ sizeClass }: { sizeClass: string }) {
@@ -94,8 +73,12 @@ export default function DashboardShell({
   allUp,
   themeToggle,
   liveClock,
+  authControls,
+  authName = null,
   children,
 }: DashboardShellProps) {
+  const mobileCols = authName ? "grid-cols-5" : "grid-cols-3";
+
   return (
     <div
       id="dashboard-root"
@@ -115,20 +98,11 @@ export default function DashboardShell({
           </a>
 
           <nav class="mt-8 space-y-1">
-            {NAV.map((item) => {
-              const Icon = item.icon;
-              return (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  class={navClass(active === item.id)}
-                  aria-current={active === item.id ? "page" : undefined}
-                >
-                  <Icon size={16} />
-                  {item.label}
-                </a>
-              );
-            })}
+            <DashboardNav
+              active={active}
+              authName={authName}
+              variant="side"
+            />
           </nav>
 
           <div class="mt-auto space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/70">
@@ -196,6 +170,7 @@ export default function DashboardShell({
                   <GithubIcon size={14} />
                 </a>
                 {themeToggle}
+                {authControls}
               </div>
             </div>
           </header>
@@ -242,26 +217,12 @@ export default function DashboardShell({
       </div>
 
       <nav class="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-200/90 bg-white/90 backdrop-blur-md lg:hidden dark:border-zinc-800 dark:bg-zinc-950/90">
-        <div class="mx-auto grid max-w-7xl grid-cols-3">
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            const isActive = active === item.id;
-            return (
-              <a
-                key={item.id}
-                href={item.href}
-                class={`flex flex-col items-center gap-1 px-2 py-3 text-[11px] font-medium ${
-                  isActive
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-zinc-500 dark:text-zinc-400"
-                }`}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <Icon size={18} />
-                {item.label}
-              </a>
-            );
-          })}
+        <div class={`mx-auto grid max-w-7xl ${mobileCols}`}>
+          <DashboardNav
+            active={active}
+            authName={authName}
+            variant="mobile"
+          />
         </div>
       </nav>
 

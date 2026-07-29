@@ -1,39 +1,64 @@
-import { getKv, getSnapshot } from "@/lib/kv.ts";
-import {
-  INCIDENT_HISTORY_KEY,
-  monitorKey,
-  MONITORS,
-  SUMMARY_KEY,
-} from "@/lib/monitor.ts";
+import { getSnapshot } from "@/lib/checks.ts";
+import { onStatusUpdate } from "@/lib/statusEvents.ts";
 
 function ssePayload(event: string, data: unknown): Uint8Array {
   const body = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   return new TextEncoder().encode(body);
 }
 
+function sseComment(text: string): Uint8Array {
+  return new TextEncoder().encode(`: ${text}\n\n`);
+}
+
 export const handler = async () => {
-  const kv = await getKv();
-  const watchKeys: Deno.KvKey[] = [
-    ...MONITORS.map((monitor) => monitorKey(monitor.id)),
-    SUMMARY_KEY,
-    INCIDENT_HISTORY_KEY,
-  ];
-  const stream = kv.watch(watchKeys);
+  let closed = false;
+  let unsubscribe: (() => void) | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let poll: ReturnType<typeof setInterval> | null = null;
+  let sending: Promise<void> = Promise.resolve();
 
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const pushSnapshot = () => {
+        if (closed) return;
+        sending = sending
+          .then(async () => {
+            if (closed) return;
+            controller.enqueue(ssePayload("snapshot", await getSnapshot()));
+          })
+          .catch((error) => {
+            console.error("SSE snapshot push failed:", error);
+          });
+      };
+
       controller.enqueue(ssePayload("snapshot", await getSnapshot()));
 
-      for await (const _entries of stream) {
-        controller.enqueue(ssePayload("snapshot", await getSnapshot()));
+      let listening = false;
+      try {
+        unsubscribe = await onStatusUpdate(pushSnapshot);
+        listening = true;
+      } catch (error) {
+        console.error("Postgres LISTEN failed; falling back to polling:", error);
+      }
+
+      heartbeat = setInterval(() => {
+        if (closed) return;
+        try {
+          controller.enqueue(sseComment("ping"));
+        } catch {
+          // Stream already closed.
+        }
+      }, 25_000);
+
+      if (!listening) {
+        poll = setInterval(pushSnapshot, 15_000);
       }
     },
-    async cancel() {
-      try {
-        await stream.cancel();
-      } catch {
-        // Ignore cancellation races when the KV stream is already locked/closed.
-      }
+    cancel() {
+      closed = true;
+      if (heartbeat !== null) clearInterval(heartbeat);
+      if (poll !== null) clearInterval(poll);
+      unsubscribe?.();
     },
   });
 

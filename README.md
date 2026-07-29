@@ -3,14 +3,16 @@
 A minimalist uptime monitoring dashboard built with Deno, Fresh, Tailwind, and
 Preact.
 
-It checks your websites on a schedule, stores results in Deno KV, streams
-updates to the UI, and sends alerts to Discord/Telegram.
+It checks websites on a schedule, stores monitors/status/incidents in
+Postgres, streams live updates to the UI, and sends alerts to
+Discord/Telegram.
 
 ## Features
 
+- Website list in Postgres (add/edit/delete via password-protected `/admin`)
 - Scheduled checks with `Deno.cron` (every minute)
-- Status persistence with `Deno.Kv`
-- Realtime dashboard refresh via `Deno.Kv.watch()` + SSE
+- Status, incidents, and alert state in Postgres
+- Realtime dashboard refresh via Postgres `LISTEN`/`NOTIFY` + SSE
 - Timezone-aware timestamps (Singapore Time by default)
 - Dark mode toggle (header button + `d` keyboard shortcut)
 - Dashboard, Services, and Incidents pages
@@ -23,16 +25,20 @@ updates to the UI, and sends alerts to Discord/Telegram.
 - [Deno](https://deno.com/)
 - [Fresh](https://fresh.deno.dev/)
 - [Preact](https://preactjs.com/)
+- [Postgres](https://www.postgresql.org/)
 - [Tailwind CSS](https://tailwindcss.com/)
 
 ## Environment Variables
 
-Only alert channel secrets come from `.env`. Everything else (app name,
-timezone, alert rules, check interval) lives in `lib/constants.ts`.
+Alert secrets and Postgres come from `.env`. App name,
+timezone, alert rules, and check interval live in `lib/constants.ts`.
 
 Create and configure `.env`:
 
 ```env
+DATABASE_URL=postgres://USER:PASSWORD@127.0.0.1:5432/status
+# AES-256-GCM key (64 hex chars / 32 bytes). openssl rand -hex 32
+ENCRYPTION_KEY=
 ALERT_DISCORD_WEBHOOK_URL=
 ALERT_TELEGRAM_BOT_TOKEN=
 ALERT_TELEGRAM_CHAT_ID=
@@ -40,6 +46,10 @@ ALERT_TELEGRAM_CHAT_ID=
 
 Notes:
 
+- Website list and admin users are stored in Postgres.
+- Admin `name` + `username` are AES-256-GCM encrypted; passwords use Argon2id.
+- First visit seeds a default admin if `users` is empty; use **Login** in the header (modal) or open `/?login=1`.
+- On first boot with an empty `monitors` table, seed sites are imported once.
 - Leave Discord/Telegram fields empty if you do not want that channel.
 - Edit `lib/constants.ts` to change app name, timezone, alert thresholds, and
   related settings.
@@ -116,7 +126,9 @@ deno task start
 
 ## Monitored Sites
 
-Configured in `lib/monitor.ts`.
+Managed in Postgres via `/admin` (websites) and `/account` (profile). Log in with
+the header Login modal.
+First boot also seeds from `SEED_MONITORS` in `lib/monitor.ts` if monitors is empty.
 
 ## Scripts
 
