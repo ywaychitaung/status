@@ -208,7 +208,7 @@ export default function AuthControls({
     : null;
 
   const toastLayer = (
-    <div class="pointer-events-none fixed right-4 top-4 z-210 flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 sm:right-6 sm:top-6">
+    <div class="pointer-events-none fixed right-4 bottom-20 z-210 flex w-[calc(100%-2rem)] max-w-sm flex-col-reverse gap-2 sm:right-6 lg:bottom-6">
       {toasts.map((toast) => (
         <div
           key={toast.id}

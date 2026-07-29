@@ -50,7 +50,7 @@ const META: Record<
   "/audits": {
     active: "audits",
     title: "Audits",
-    subtitle: "Login, logout, and website change history",
+    subtitle: "Login, logout, account, and website change history",
   },
   "/account": {
     active: "account",

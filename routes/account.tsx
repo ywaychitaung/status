@@ -3,6 +3,7 @@ import {
   getSessionUserId,
   updateUserAccount,
 } from "@/lib/adminAuth.ts";
+import { writeAuditSafe } from "@/lib/audit.ts";
 import {
   redirect,
   requireAdminSession,
@@ -48,15 +49,54 @@ export const handler = define.handlers({
           newPassword: String(form.get("new_password") ?? ""),
           confirmPassword: String(form.get("confirm_password") ?? ""),
         });
+        await writeAuditSafe({
+          action: "account.password_change",
+          actor: session,
+          entityType: "user",
+          entityId: String(session.id),
+          summary: `${session.name} changed password`,
+          req: ctx.req,
+        });
         return redirect(withQuery("/account", {
           flash: "Password changed.",
           error: null,
         }));
       }
 
-      await updateUserAccount(userId, {
+      const updated = await updateUserAccount(userId, {
         name: String(form.get("name") ?? ""),
         username: String(form.get("username") ?? ""),
+      });
+      const nameChanged = updated.name !== session.name;
+      const usernameChanged = updated.username !== session.username;
+      const changes: string[] = [];
+      if (nameChanged) changes.push("name");
+      if (usernameChanged) changes.push("username");
+
+      await writeAuditSafe({
+        action: "account.profile_update",
+        actor: {
+          id: updated.id,
+          username: updated.username,
+          name: updated.name,
+        },
+        entityType: "user",
+        entityId: String(updated.id),
+        summary: changes.length === 0
+          ? `${updated.name} saved profile (no fields changed)`
+          : `${session.name} updated ${changes.join(" and ")}`,
+        metadata: {
+          before: {
+            name: session.name,
+            username: session.username,
+          },
+          after: {
+            name: updated.name,
+            username: updated.username,
+          },
+          changed: changes,
+        },
+        req: ctx.req,
       });
       return redirect(withQuery("/account", {
         flash: "Profile updated.",

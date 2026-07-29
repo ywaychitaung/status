@@ -4,6 +4,8 @@ export type AuditAction =
   | "auth.login"
   | "auth.login_failed"
   | "auth.logout"
+  | "account.profile_update"
+  | "account.password_change"
   | "monitor.create"
   | "monitor.update"
   | "monitor.delete"
@@ -34,6 +36,10 @@ export function formatAuditAction(action: AuditAction): string {
       return "Login failed";
     case "auth.logout":
       return "Logged out";
+    case "account.profile_update":
+      return "Profile updated";
+    case "account.password_change":
+      return "Password changed";
     case "monitor.create":
       return "Website created";
     case "monitor.update":

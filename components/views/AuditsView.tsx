@@ -18,6 +18,29 @@ function auditError(audit: AuditRecord): string | null {
   return typeof error === "string" && error.trim() ? error.trim() : null;
 }
 
+function profileChangeNote(audit: AuditRecord): string | null {
+  if (audit.action !== "account.profile_update" || !audit.metadata) {
+    return null;
+  }
+  const before = audit.metadata.before as
+    | { name?: string; username?: string }
+    | undefined;
+  const after = audit.metadata.after as
+    | { name?: string; username?: string }
+    | undefined;
+  if (!before || !after) return null;
+  const parts: string[] = [];
+  if (before.name !== after.name) {
+    parts.push(`name: ${before.name ?? "—"} → ${after.name ?? "—"}`);
+  }
+  if (before.username !== after.username) {
+    parts.push(
+      `username: ${before.username ?? "—"} → ${after.username ?? "—"}`,
+    );
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export default function AuditsView({ audits }: AuditsViewProps) {
   return (
     <div class="mx-auto w-full max-w-5xl space-y-6">
@@ -27,8 +50,8 @@ export default function AuditsView({ audits }: AuditsViewProps) {
             Audit log ({audits.length})
           </h2>
           <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Successful and failed logins, logouts, and website create / update /
-            delete / reactivate events.
+            Successful and failed logins, logouts, profile/password changes, and
+            website create / update / delete / reactivate events.
           </p>
         </div>
 
@@ -53,6 +76,7 @@ export default function AuditsView({ audits }: AuditsViewProps) {
                 <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                   {audits.map((audit) => {
                     const error = auditError(audit);
+                    const profileNote = profileChangeNote(audit);
                     const failed = audit.action === "auth.login_failed";
                     return (
                       <tr
@@ -80,6 +104,13 @@ export default function AuditsView({ audits }: AuditsViewProps) {
                           <p class="text-zinc-600 dark:text-zinc-300">
                             {audit.summary}
                           </p>
+                          {profileNote
+                            ? (
+                              <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                {profileNote}
+                              </p>
+                            )
+                            : null}
                           {error
                             ? (
                               <p class="mt-1 text-xs text-red-600 dark:text-red-400">
