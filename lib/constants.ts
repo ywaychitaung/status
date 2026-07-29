@@ -1,11 +1,11 @@
 /** Static app metadata and shared defaults. */
 
-export const APP_VERSION = "2.0.1";
+export const APP_VERSION = "3.0.0";
 
 export const APP_NAME = "Status";
 export const APP_TAGLINE = "Uptime Monitor";
 export const APP_DESCRIPTION =
-  "Personal website uptime monitoring with Deno Cron, KV, and live SSE updates.";
+  "Personal website uptime monitoring with Deno Cron, Postgres storage, and live SSE updates.";
 
 export const AUTHOR = {
   name: "Yway Chit Aung",
@@ -31,7 +31,7 @@ export const MONITOR = {
   intervalLabel: "Every 1 minute",
   intervalMinutes: 1,
   engine: "Deno Cron",
-  storage: "Deno KV",
+  storage: "Postgres",
   stream: "SSE live",
 } as const;
 
@@ -54,5 +54,8 @@ export const LINKS = {
   home: "/",
   services: "/services",
   incidents: "/incidents",
+  admin: "/admin",
+  audits: "/audits",
+  account: "/account",
   github: "https://github.com/ywaychitaung/status",
 } as const;

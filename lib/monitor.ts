@@ -1,7 +1,11 @@
+import { ulid } from "@std/ulid";
+
 export interface MonitorTarget {
   id: string;
   name: string;
   url: string;
+  sortOrder: number;
+  isActive: boolean;
 }
 
 export interface MonitorStatus {
@@ -20,7 +24,7 @@ export interface MonitorSummary {
   lastOutageAt: string | null;
 }
 
-/** Incident history entry stored in KV (open or resolved). */
+/** Incident history entry (open or resolved). */
 export interface IncidentRecord {
   id: string;
   monitorId: string;
@@ -33,35 +37,39 @@ export interface IncidentRecord {
   error: string | null;
 }
 
-export const MONITORS: MonitorTarget[] = [
-  {
-    id: "ywaychitaung-dev",
-    name: "Portfolio v5",
-    url: "https://ywaychitaung.dev",
-  },
-  {
-    id: "ywaychitaung-com",
-    name: "Personal",
-    url: "https://ywaychitaung.com",
-  },
-  {
-    id: "utils-ywaychitaung-dev",
-    name: "Utilities",
-    url: "https://utils.ywaychitaung.dev",
-  },
-  {
-    id: "team7labs-com",
-    name: "Team7 Labs",
-    url: "https://team7labs.com",
-  },
-];
+/** Crockford Base32 ULID (26 chars). */
+const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
-export function monitorKey(id: string): Deno.KvKey {
-  return ["monitor", id];
+export function newMonitorId(): string {
+  return ulid();
 }
 
-export const SUMMARY_KEY: Deno.KvKey = ["summary"];
-export const INCIDENT_HISTORY_KEY: Deno.KvKey = ["incidents", "history"];
+export function isMonitorUlid(id: string): boolean {
+  return ULID_RE.test(id);
+}
 
-/** Max incident records retained in KV (newest kept). */
+/** Max incident records retained (newest kept). */
 export const INCIDENT_HISTORY_LIMIT = 50;
+
+export function normalizeMonitorUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error("URL is required");
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  const parsed = new URL(withProtocol);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("URL must use http or https");
+  }
+  parsed.hash = "";
+  const path = parsed.pathname === "/"
+    ? ""
+    : parsed.pathname.replace(/\/$/, "");
+  return `${parsed.origin}${path}${parsed.search}`;
+}
+
+export function toIso(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value).toISOString();
+}

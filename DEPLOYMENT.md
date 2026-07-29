@@ -44,13 +44,35 @@ Examples:
 Create `/opt/<REPO_NAME>/.env`:
 
 ```env
+DATABASE_URL=postgres://<DB_USER>:<DB_PASSWORD>@127.0.0.1:5432/<DB_NAME>
+ENCRYPTION_KEY=<OPENSSL_RAND_HEX_32>
 ALERT_DISCORD_WEBHOOK_URL=<DISCORD_WEBHOOK_URL>
 ALERT_TELEGRAM_BOT_TOKEN=<TELEGRAM_BOT_TOKEN>
 ALERT_TELEGRAM_CHAT_ID=<TELEGRAM_CHAT_ID>
 ```
 
+Generate `ENCRYPTION_KEY` with:
+
+```bash
+openssl rand -hex 32
+```
+
+If omitted, the app generates one into `app_settings` (weaker if the DB is stolen).
+
+Install and create Postgres (on the droplet) before starting the app:
+
+```bash
+apt install -y postgresql
+sudo -u postgres createuser -P <DB_USER>
+sudo -u postgres createdb -O <DB_USER> <DB_NAME>
+```
+
 App name, timezone, alert thresholds, and related settings are configured in
 `lib/constants.ts` (not environment variables).
+
+Website targets and admin accounts are stored in Postgres. Use **Login** in the
+header, or open `https://<APP_DOMAIN>/?login=1` (default seed user is created
+when `users` is empty). After sign-in, an **Admin** tab appears in the nav.
 
 Leave Discord/Telegram values empty to disable that alert channel.
 
@@ -74,7 +96,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/<REPO_NAME>
-ExecStart=/usr/local/bin/deno serve -A --unstable-kv --unstable-cron --env-file=.env --port=8000 _fresh/server.js
+ExecStart=/usr/local/bin/deno serve -A --unstable-cron --env-file=.env --port=8000 _fresh/server.js
 Restart=always
 RestartSec=3
 User=root
