@@ -20,9 +20,35 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/status
+
             git fetch origin
             git reset --hard origin/main
-            deno install
-            deno task build
-            systemctl restart status
-            systemctl is-active --quiet status
+
+            composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+            npm ci
+            npm run build
+
+            php artisan migrate --force
+            php artisan storage:link --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            # Clear stale OPcache / workers after code + asset deploy.
+            if systemctl list-unit-files | grep -qE '^php[0-9.]*-fpm\.service'; then
+              systemctl reload php8.4-fpm 2>/dev/null \
+                || systemctl reload php8.3-fpm 2>/dev/null \
+                || systemctl reload php8.2-fpm 2>/dev/null \
+                || true
+            fi
+
+            if systemctl list-unit-files | grep -q '^nginx\.service'; then
+              nginx -t
+              systemctl reload nginx
+            fi
+
+            # Optional Laravel app/queue units (if you kept a status.service).
+            if systemctl list-unit-files | grep -q '^status\.service'; then
+              systemctl restart status
+              systemctl is-active --quiet status
+            fi
