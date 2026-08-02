@@ -74,6 +74,25 @@ class DashboardDatetime
         return (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d\TH:i:s.v\Z');
     }
 
+    /**
+     * Current clock floored to the start of the minute in the dashboard timezone,
+     * returned as UTC ISO-8601 (so UI always shows …:00 for scheduled checks).
+     */
+    public static function nowMinuteIso(): string
+    {
+        $tz = new DateTimeZone(self::timezoneConfig()['id']);
+        $local = new DateTimeImmutable('now', $tz);
+        $minute = $local->setTime(
+            (int) $local->format('H'),
+            (int) $local->format('i'),
+            0,
+        );
+
+        return $minute
+            ->setTimezone(new DateTimeZone('UTC'))
+            ->format('Y-m-d\TH:i:s.v\Z');
+    }
+
     private static function toDate(DateTimeInterface|string|null $value): ?DateTimeImmutable
     {
         if ($value === null) {

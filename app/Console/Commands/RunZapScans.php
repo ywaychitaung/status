@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\SecurityScan;
+use App\Models\ZapScanRun;
 use App\Services\MonitorService;
 use App\Services\ZapScanner;
 use App\Services\ZapScanService;
@@ -22,8 +23,33 @@ class RunZapScans extends Command
     {
         set_time_limit(0);
 
+        $runIdOption = $this->option('run');
+        $trackedRunId = is_numeric($runIdOption) && (int) $runIdOption > 0
+            ? (int) $runIdOption
+            : null;
+
+        if ($trackedRunId !== null) {
+            $scans->touchWorkerHeartbeat($trackedRunId);
+            register_shutdown_function(function () use ($trackedRunId): void {
+                try {
+                    $run = ZapScanRun::query()->find($trackedRunId);
+                    if (
+                        $run instanceof ZapScanRun
+                        && $run->is_active
+                        && $run->status === ZapScanRun::STATUS_RUNNING
+                    ) {
+                        $run->markFailed('ZAP worker terminated unexpectedly. Check storage/logs/zap-scan.log.');
+                    }
+                } catch (Throwable) {
+                    // Ignore shutdown cleanup failures.
+                }
+            });
+        }
+
         if (! $zap->dockerAvailable()) {
-            $this->components->error('Docker is not available. Install Docker and pull the ZAP image first (see scripts/install-zap.sh).');
+            $message = 'Docker is not available. Install Docker and pull the ZAP image first (see scripts/install-zap.sh).';
+            $this->failTrackedRun($trackedRunId, $message);
+            $this->components->error($message);
 
             return self::FAILURE;
         }
@@ -34,9 +60,16 @@ class RunZapScans extends Command
             : SecurityScan::SOURCE_WEEKLY;
 
         try {
-            $runId = $this->option('run');
-            if (is_numeric($runId) && (int) $runId > 0) {
-                $checked = $scans->executeRun((int) $runId, $source);
+            if ($trackedRunId !== null) {
+                $checked = $scans->executeRun($trackedRunId, $source);
+                if ($checked === 0) {
+                    $run = ZapScanRun::query()->find($trackedRunId);
+                    $detail = $run?->error ?: 'No monitors were scanned. Check storage/logs/laravel.log for per-site errors.';
+                    $this->components->error("ZAP run finished with 0 results: {$detail}");
+
+                    return self::FAILURE;
+                }
+
                 $this->components->info(
                     $checked === 1 ? 'Scanned 1 monitor with OWASP ZAP.' : "Scanned {$checked} monitors with OWASP ZAP."
                 );
@@ -62,6 +95,7 @@ class RunZapScans extends Command
 
             $checked = $scans->scanAllActive();
         } catch (Throwable $error) {
+            $this->failTrackedRun($trackedRunId, $error->getMessage());
             $this->components->error('ZAP scan run failed: '.$error->getMessage());
 
             return self::FAILURE;
@@ -72,5 +106,17 @@ class RunZapScans extends Command
         );
 
         return self::SUCCESS;
+    }
+
+    private function failTrackedRun(?int $runId, string $message): void
+    {
+        if ($runId === null) {
+            return;
+        }
+
+        $run = ZapScanRun::query()->find($runId);
+        if ($run instanceof ZapScanRun && $run->is_active && $run->status === ZapScanRun::STATUS_RUNNING) {
+            $run->markFailed($message);
+        }
     }
 }

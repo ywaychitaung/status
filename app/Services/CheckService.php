@@ -26,7 +26,7 @@ class CheckService
     /** Probe every active monitor, persist results, and fan out alerts. */
     public function runChecks(): int
     {
-        $now = DashboardDatetime::nowIso();
+        $now = DashboardDatetime::nowMinuteIso();
         $summary = $this->summary();
         $monitors = $this->monitors->listActive();
         $checked = 0;

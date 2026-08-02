@@ -45,11 +45,35 @@ jobs:
             ZAP_DOCKER_IMAGE="${ZAP_DOCKER_IMAGE:-ghcr.io/zaproxy/zaproxy:stable}" \
               bash scripts/install-zap.sh
 
+            # PHP-FPM / ZAP worker must own storage (mkdir Permission denied otherwise).
+            WEB_USER="${WEB_USER:-www-data}"
+            mkdir -p storage/app/zap storage/logs storage/framework/{cache,sessions,views} bootstrap/cache
+            if id "${WEB_USER}" >/dev/null 2>&1; then
+              chown -R "${WEB_USER}:${WEB_USER}" storage bootstrap/cache
+            fi
+            chmod -R ug+rwx storage bootstrap/cache
+            chmod 1777 storage/app/zap
+
             php artisan migrate --force
             php artisan storage:link --force
+            php artisan schedule:clear-cache || true
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+
+            # Minute monitor checks require cron → schedule:run
+            PHP_BIN="$(command -v php8.4 || command -v php)"
+            CRON_LINE="* * * * * cd /opt/status && ${PHP_BIN} artisan schedule:run >> /opt/status/storage/logs/scheduler.log 2>&1"
+            EXISTING="$(crontab -l 2>/dev/null || true)"
+            if ! printf '%s\n' "${EXISTING}" | grep -qF 'artisan schedule:run'; then
+              printf '%s\n%s\n' "${EXISTING}" "${CRON_LINE}" | crontab -
+              echo "Installed Laravel scheduler cron"
+            else
+              echo "Laravel scheduler cron already present"
+            fi
+
+            # Refresh statuses immediately after deploy
+            ${PHP_BIN} artisan status:check || true
 
             if systemctl list-unit-files | grep -qE '^php8\.4-fpm\.service'; then
               systemctl reload php8.4-fpm

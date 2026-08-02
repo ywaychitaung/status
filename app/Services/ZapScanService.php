@@ -27,7 +27,8 @@ class ZapScanService
      *   scans: list<array<string, mixed>>,
      *   zapReady: bool,
      *   monitorCount: int,
-     *   activeRun: array<string, mixed>|null
+     *   activeRun: array<string, mixed>|null,
+     *   lastRun: array<string, mixed>|null
      * }
      */
     public function pageData(?User $user = null): array
@@ -50,9 +51,13 @@ class ZapScanService
             ->all();
 
         $activeRun = null;
+        $lastRun = null;
         if ($userId !== null) {
             $run = $this->activeRunForUser($userId);
             $activeRun = $run?->toArrayForUi();
+            if ($run === null) {
+                $lastRun = $this->latestFinishedRunForUser($userId)?->toArrayForUi();
+            }
         }
 
         return [
@@ -60,6 +65,7 @@ class ZapScanService
             'zapReady' => $this->zap->dockerAvailable(),
             'monitorCount' => count($this->monitors->listActive($userId)),
             'activeRun' => $activeRun,
+            'lastRun' => $lastRun,
         ];
     }
 
@@ -165,8 +171,10 @@ class ZapScanService
         $run->is_active = true;
         $run->error = null;
         $run->save();
+        $this->touchWorkerHeartbeat($runId);
 
         $scanned = 0;
+        $processed = 0;
         $lastError = null;
 
         try {
@@ -177,17 +185,24 @@ class ZapScanService
             }
 
             foreach ($monitors as $monitor) {
+                $this->touchWorkerHeartbeat($runId);
+
                 try {
                     $ownerId = $userId ?? (isset($monitor['userId']) ? (int) $monitor['userId'] : null);
                     $this->scanMonitor($monitor, $ownerId, $normalizedSource);
                     $scanned++;
+                    Log::info("ZAP scan saved for monitor {$monitor['id']} ({$monitor['url']}).");
                 } catch (Throwable $error) {
                     $lastError = $error->getMessage();
-                    Log::error("ZAP scan failed for monitor {$monitor['id']}: ".$lastError);
+                    Log::error("ZAP scan failed for monitor {$monitor['id']} ({$monitor['url']}): ".$lastError);
+                    // Also mirror into the worker log file (stdout of the nohup process).
+                    fwrite(STDERR, '[error] ZAP scan failed for '.$monitor['url'].': '.$lastError.PHP_EOL);
                 }
 
-                $run->monitors_completed = $scanned;
+                $processed++;
+                $run->monitors_completed = $processed;
                 $run->save();
+                $this->touchWorkerHeartbeat($runId);
             }
 
             if ($scanned === 0) {
@@ -203,6 +218,7 @@ class ZapScanService
             throw $error;
         } finally {
             Cache::forget($this->workerPidCacheKey($runId));
+            Cache::forget($this->workerHeartbeatKey($runId));
         }
 
         return $scanned;
@@ -295,8 +311,18 @@ class ZapScanService
     private function spawnBackgroundWorker(int $runId, int $userId, string $source): void
     {
         $logFile = storage_path('logs/zap-scan.log');
-        if (! is_dir(dirname($logFile))) {
-            mkdir(dirname($logFile), 0775, true);
+        $logDir = dirname($logFile);
+        if (! is_dir($logDir)) {
+            if (! @mkdir($logDir, 0775, true) && ! is_dir($logDir)) {
+                throw new StatusException(
+                    "Permission denied creating {$logDir}. Run: sudo chown -R www-data:www-data storage/logs && sudo chmod -R ug+rwx storage/logs"
+                );
+            }
+        }
+        if (! is_writable($logDir)) {
+            throw new StatusException(
+                "Log directory is not writable: {$logDir}. Run: sudo chown -R www-data:www-data storage/logs && sudo chmod -R ug+rwx storage/logs"
+            );
         }
 
         // Fully detach from php-fpm: closed stdin, nohup, backgrounded.
@@ -327,10 +353,11 @@ class ZapScanService
         }
 
         Cache::put($this->workerPidCacheKey($runId), $pid, now()->addSeconds(self::STALE_AFTER_SECONDS));
+        Cache::forget($this->workerHeartbeatKey($runId));
 
-        // Brief settle — if the CLI dies immediately (missing php-cli, bad artisan), fail now.
-        usleep(400_000);
-        if (function_exists('posix_kill') && ! @posix_kill($pid, 0)) {
+        // Wait for the CLI worker to boot and write its first heartbeat (not the parent PID).
+        usleep(1_500_000);
+        if (! $this->hasFreshWorkerHeartbeat($runId, 10) && ! $this->isWorkerProcessAlive($runId)) {
             throw new StatusException(
                 'Background ZAP worker exited immediately. Check storage/logs/zap-scan.log (often PHP-CLI missing or Docker permission denied for the web user).'
             );
@@ -339,35 +366,76 @@ class ZapScanService
 
     private function reapDeadWorkersForUser(int $userId): void
     {
-        if (! function_exists('posix_kill')) {
-            return;
-        }
+        // One ZAP site can block for ZAP_TIMEOUT_SECONDS with no progress updates.
+        // A short pgrep window (e.g. 45s) false-fails live scans in production.
+        $graceSeconds = max(300, (int) config('status.zap.timeout_seconds', 900) + 180);
 
         $runs = ZapScanRun::query()
             ->where('user_id', $userId)
             ->where('is_active', true)
             ->where('status', ZapScanRun::STATUS_RUNNING)
-            ->where('started_at', '<', now()->subSeconds(20))
+            ->where('started_at', '<', now()->subSeconds($graceSeconds))
             ->get();
 
         foreach ($runs as $run) {
-            $pid = Cache::get($this->workerPidCacheKey((int) $run->id));
-            if (! is_numeric($pid) || (int) $pid <= 0) {
+            $runId = (int) $run->id;
+            if ($this->hasFreshWorkerHeartbeat($runId, $graceSeconds) || $this->isWorkerProcessAlive($runId)) {
                 continue;
             }
 
-            if (! @posix_kill((int) $pid, 0)) {
-                $run->markFailed(
-                    'Background ZAP worker exited unexpectedly. Check storage/logs/zap-scan.log.'
-                );
-                Cache::forget($this->workerPidCacheKey((int) $run->id));
-            }
+            $run->markFailed(
+                'Background ZAP worker stopped responding. Check storage/logs/zap-scan.log.'
+            );
+            Cache::forget($this->workerPidCacheKey($runId));
+            Cache::forget($this->workerHeartbeatKey($runId));
         }
+    }
+
+    public function touchWorkerHeartbeat(int $runId): void
+    {
+        Cache::put(
+            $this->workerHeartbeatKey($runId),
+            time(),
+            now()->addSeconds(self::STALE_AFTER_SECONDS)
+        );
+    }
+
+    private function hasFreshWorkerHeartbeat(int $runId, int $maxAgeSeconds): bool
+    {
+        $beat = Cache::get($this->workerHeartbeatKey($runId));
+        if (! is_numeric($beat)) {
+            return false;
+        }
+
+        return (time() - (int) $beat) <= $maxAgeSeconds;
+    }
+
+    private function hasPgrep(): bool
+    {
+        return trim((string) shell_exec('command -v pgrep 2>/dev/null')) !== '';
+    }
+
+    /** True when an artisan worker for this run id is still visible to the OS. */
+    private function isWorkerProcessAlive(int $runId): bool
+    {
+        if (! $this->hasPgrep()) {
+            return false;
+        }
+
+        $pattern = 'status:zap-scan --run='.$runId;
+        $output = trim((string) shell_exec('pgrep -f '.escapeshellarg($pattern).' 2>/dev/null'));
+
+        return $output !== '';
     }
 
     private function workerPidCacheKey(int $runId): string
     {
         return 'zap_scan_run_pid:'.$runId;
+    }
+
+    private function workerHeartbeatKey(int $runId): string
+    {
+        return 'zap_scan_run_heartbeat:'.$runId;
     }
 
     private function expireStaleRunsForUser(int $userId): void
@@ -380,6 +448,7 @@ class ZapScanService
             ->each(function (ZapScanRun $run): void {
                 $run->markFailed('Scan timed out (no completion within 2 hours).');
                 Cache::forget($this->workerPidCacheKey((int) $run->id));
+                Cache::forget($this->workerHeartbeatKey((int) $run->id));
             });
     }
 

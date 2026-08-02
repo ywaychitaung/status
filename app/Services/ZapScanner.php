@@ -39,17 +39,16 @@ class ZapScanner
             return $this->failureResult($normalized, 'Docker is not available for OWASP ZAP scans.', null);
         }
 
-        $workDir = storage_path('app/zap/'.Str::lower((string) Str::ulid()));
-        File::ensureDirectoryExists($workDir, 0777);
-        @chmod($workDir, 0777);
-
-        $reportName = 'report.json';
-        $reportPath = $workDir.DIRECTORY_SEPARATOR.$reportName;
-        $image = (string) config('status.zap.docker_image');
-        $minutes = max(1, (int) config('status.zap.spider_minutes'));
-        $timeout = max(120, (int) config('status.zap.timeout_seconds'));
+        $workDir = null;
 
         try {
+            $workDir = $this->prepareWorkDir();
+            $reportName = 'report.json';
+            $reportPath = $workDir.DIRECTORY_SEPARATOR.$reportName;
+            $image = (string) config('status.zap.docker_image');
+            $minutes = max(1, (int) config('status.zap.spider_minutes'));
+            $timeout = max(120, (int) config('status.zap.timeout_seconds'));
+
             // Do not allocate a TTY (`-t`) — it hangs under PHP-FPM / Process.
             $result = Process::timeout($timeout)
                 ->run([
@@ -110,7 +109,70 @@ class ZapScanner
 
             return $this->failureResult($normalized, 'ZAP scan failed: '.$error->getMessage(), null);
         } finally {
-            File::deleteDirectory($workDir);
+            if (is_string($workDir) && $workDir !== '') {
+                File::deleteDirectory($workDir);
+            }
+        }
+    }
+
+    /** Create a world-writable work dir for the ZAP Docker volume mount. */
+    private function prepareWorkDir(): string
+    {
+        // Prefer app storage; fall back to /tmp when storage/app/zap is not writable
+        // (common after Docker leaves root-owned leftovers on the droplet).
+        $candidates = [
+            storage_path('app/zap'),
+            rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'status-zap',
+        ];
+
+        $lastError = null;
+
+        foreach ($candidates as $base) {
+            try {
+                $this->ensureWritableDirectory($base, 0777);
+                $workDir = $base.DIRECTORY_SEPARATOR.Str::lower((string) Str::ulid());
+                $this->ensureWritableDirectory($workDir, 0777);
+
+                $resolved = realpath($workDir);
+                if ($resolved === false || ! is_dir($resolved)) {
+                    throw new \RuntimeException("Could not resolve ZAP work dir: {$workDir}");
+                }
+
+                if ($base !== $candidates[0]) {
+                    Log::warning("ZAP using fallback work dir base: {$base}");
+                }
+
+                return $resolved;
+            } catch (Throwable $error) {
+                $lastError = $error;
+                Log::warning('ZAP work dir unavailable at '.$base.': '.$error->getMessage());
+            }
+        }
+
+        throw new \RuntimeException(
+            $lastError?->getMessage()
+                ?? 'Could not create a writable ZAP work directory under storage/app/zap or /tmp/status-zap.'
+        );
+    }
+
+    private function ensureWritableDirectory(string $path, int $mode): void
+    {
+        clearstatcache(true, $path);
+
+        if (! is_dir($path)) {
+            // Suppress PHP warning; we throw a clear RuntimeException below.
+            $created = @mkdir($path, $mode, true);
+            clearstatcache(true, $path);
+            if (! $created && ! is_dir($path)) {
+                throw new \RuntimeException("Permission denied creating {$path}");
+            }
+        }
+
+        @chmod($path, $mode);
+        clearstatcache(true, $path);
+
+        if (! is_writable($path)) {
+            throw new \RuntimeException("Directory is not writable: {$path}");
         }
     }
 

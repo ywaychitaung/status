@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('status:check')
     ->cron((string) config('status.monitor.cron_expression'))
-    ->withoutOverlapping()
+    ->timezone((string) config('status.timezone.id', 'Asia/Singapore'))
+    ->withoutOverlapping(10)
     ->runInBackground();
 
 if (config('status.zap.enabled')) {

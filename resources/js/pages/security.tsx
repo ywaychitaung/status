@@ -15,6 +15,7 @@ export default function SecurityPage({
     zapReady,
     monitorCount,
     activeRun,
+    lastRun = null,
     flash,
     error,
 }: SecurityPageProps) {
@@ -41,6 +42,7 @@ export default function SecurityPage({
                     zapReady={zapReady}
                     monitorCount={monitorCount}
                     activeRun={activeRun}
+                    lastRun={lastRun}
                     flash={flash}
                     error={error}
                 />

@@ -242,9 +242,11 @@ export interface ZapScanRunRecord {
     status: string;
     monitorsTotal: number;
     monitorsCompleted: number;
+    progressPercent?: number;
     startedAt: string;
     startedAtIso: string | null;
     finishedAt: string | null;
+    finishedAtIso?: string | null;
     error: string | null;
 }
 
@@ -253,6 +255,7 @@ export interface SecurityPageProps extends StatusPageProps {
     zapReady: boolean;
     monitorCount: number;
     activeRun: ZapScanRunRecord | null;
+    lastRun?: ZapScanRunRecord | null;
     flash: string | null;
     error: string | null;
 }
