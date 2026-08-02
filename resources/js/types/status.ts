@@ -1,8 +1,24 @@
 /** Shared types for the status dashboard (port of _legacy/lib/pageTypes.ts). */
 
-export type DashboardNavId = 'dashboard' | 'services' | 'incidents' | 'admin' | 'alerts' | 'audits' | 'account';
+export type DashboardNavId =
+    | 'dashboard'
+    | 'services'
+    | 'incidents'
+    | 'admin'
+    | 'security'
+    | 'alerts'
+    | 'audits'
+    | 'account';
 
-export type PagePath = '/' | '/services' | '/incidents' | '/admin' | '/alerts' | '/audits' | '/account';
+export type PagePath =
+    | '/'
+    | '/services'
+    | '/incidents'
+    | '/admin'
+    | '/security'
+    | '/alerts'
+    | '/audits'
+    | '/account';
 
 export interface MonitorTarget {
     id: string;
@@ -107,6 +123,7 @@ export interface StatusLinks {
     admin: string;
     alerts: string;
     audits: string;
+    security: string;
     account: string;
     github: string;
 }
@@ -124,6 +141,12 @@ export interface StatusAppConfig {
         engine: string;
         storage: string;
         stream: string;
+    };
+    zap: {
+        enabled: boolean;
+        cronExpression: string;
+        timezone: string;
+        scheduleLabel: string;
     };
     theme: { storageKey: string; shortcutKey: string; defaultMode: string };
     links: StatusLinks;
@@ -176,6 +199,33 @@ export interface AlertsPageProps extends StatusPageProps {
         telegramBotToken: string;
         telegramChatId: string;
     };
+    flash: string | null;
+    error: string | null;
+}
+
+export interface SecurityScanRecord {
+    id: number;
+    source: string;
+    engine: string;
+    monitorId: string | null;
+    monitorName: string;
+    domainUrl: string;
+    status: string;
+    summary: string;
+    details: Record<string, unknown>;
+    alertHigh: number;
+    alertMedium: number;
+    alertLow: number;
+    alertInfo: number;
+    exitCode: number | null;
+    scannedAt: string;
+    scannedAtIso: string | null;
+}
+
+export interface SecurityPageProps extends StatusPageProps {
+    scans: SecurityScanRecord[];
+    zapReady: boolean;
+    monitorCount: number;
     flash: string | null;
     error: string | null;
 }

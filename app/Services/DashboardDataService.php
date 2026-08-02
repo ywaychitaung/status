@@ -15,6 +15,7 @@ class DashboardDataService
         private readonly MonitorService $monitors,
         private readonly AuditService $audits,
         private readonly AlertSettingsService $alertSettings,
+        private readonly ZapScanService $zapScans,
     ) {}
 
     /**
@@ -108,6 +109,23 @@ class DashboardDataService
             'frame' => $this->frame(),
             'user' => $this->authUser($request),
             'settings' => $this->alertSettings->toForm(),
+            'flash' => $this->flash($request, 'flash'),
+            'error' => $this->flash($request, 'error'),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function securityPage(Request $request): array
+    {
+        $path = '/security';
+        $security = $this->zapScans->pageData();
+
+        return [
+            'path' => $path,
+            'meta' => PageMeta::forPath($path),
+            'frame' => $this->frame(),
+            'user' => $this->authUser($request),
+            ...$security,
             'flash' => $this->flash($request, 'flash'),
             'error' => $this->flash($request, 'error'),
         ];

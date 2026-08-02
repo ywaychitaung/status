@@ -16,3 +16,11 @@ Schedule::command('status:check')
     ->cron((string) config('status.monitor.cron_expression'))
     ->withoutOverlapping()
     ->runInBackground();
+
+if (config('status.zap.enabled')) {
+    Schedule::command('status:zap-scan')
+        ->cron((string) config('status.zap.cron_expression'))
+        ->timezone((string) config('status.zap.timezone'))
+        ->withoutOverlapping()
+        ->runInBackground();
+}

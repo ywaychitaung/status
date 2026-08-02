@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exceptions\StatusException;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Services\CheckService;
 use App\Services\DashboardDataService;
 use App\Services\MonitorService;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,7 @@ class AdminController extends Controller
     public function __construct(
         private readonly DashboardDataService $data,
         private readonly MonitorService $monitors,
+        private readonly CheckService $checks,
         private readonly AuditService $audits,
     ) {}
 
@@ -51,6 +53,12 @@ class AdminController extends Controller
             );
         } catch (Throwable $error) {
             return $this->failure($this->message($error));
+        }
+
+        try {
+            $this->checks->checkMonitor($created);
+        } catch (Throwable $error) {
+            Log::error('Initial check failed for '.$created['id'].': '.$error->getMessage());
         }
 
         $this->audits->writeSafe([
@@ -144,6 +152,12 @@ class AdminController extends Controller
             $restored = $this->monitors->reactivate($monitor);
         } catch (Throwable $error) {
             return $this->failure($this->message($error), $monitor);
+        }
+
+        try {
+            $this->checks->checkMonitor($restored);
+        } catch (Throwable $error) {
+            Log::error('Initial check failed for '.$restored['id'].': '.$error->getMessage());
         }
 
         $this->audits->writeSafe([

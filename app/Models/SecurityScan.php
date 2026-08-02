@@ -2,51 +2,64 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ReadsEncryptedAttributes;
 use App\Support\DashboardDatetime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
+ * OWASP ZAP scan result for a monitored website.
+ *
  * @property int $id
- * @property int $user_id
- * @property int|null $github_repo_id
+ * @property int|null $user_id
+ * @property string|null $monitor_id
  * @property string $source
- * @property string|null $repo_full_name
- * @property string|null $commit_sha
- * @property string|null $commit_message
- * @property string|null $pusher_login
- * @property string $domain_url
+ * @property string $engine
+ * @property string|null $monitor_name plaintext (decrypted)
+ * @property string $domain_url plaintext (decrypted)
  * @property string $status
- * @property string $summary
- * @property array<string, mixed> $details
+ * @property string $summary plaintext (decrypted)
+ * @property array<string, mixed> $details plaintext (decrypted)
+ * @property int $alert_high
+ * @property int $alert_medium
+ * @property int $alert_low
+ * @property int $alert_info
+ * @property int|null $exit_code
  * @property Carbon $scanned_at
  */
 class SecurityScan extends Model
 {
+    use ReadsEncryptedAttributes;
+
     public const STATUS_PASS = 'pass';
 
     public const STATUS_WARN = 'warn';
 
     public const STATUS_FAIL = 'fail';
 
-    protected $table = 'github_security_scans';
+    public const ENGINE_ZAP = 'owasp_zap';
+
+    protected $table = 'security_scans';
 
     /**
      * @var list<string>
      */
     protected $fillable = [
         'user_id',
-        'github_repo_id',
+        'monitor_id',
         'source',
-        'repo_full_name',
-        'commit_sha',
-        'commit_message',
-        'pusher_login',
+        'engine',
+        'monitor_name',
         'domain_url',
         'status',
         'summary',
         'details',
+        'alert_high',
+        'alert_medium',
+        'alert_low',
+        'alert_info',
+        'exit_code',
         'scanned_at',
     ];
 
@@ -56,7 +69,15 @@ class SecurityScan extends Model
     protected function casts(): array
     {
         return [
-            'details' => 'array',
+            'monitor_name' => 'encrypted',
+            'domain_url' => 'encrypted',
+            'summary' => 'encrypted',
+            'details' => 'encrypted:array',
+            'alert_high' => 'integer',
+            'alert_medium' => 'integer',
+            'alert_low' => 'integer',
+            'alert_info' => 'integer',
+            'exit_code' => 'integer',
             'scanned_at' => 'datetime',
         ];
     }
@@ -69,28 +90,24 @@ class SecurityScan extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * @return BelongsTo<GithubRepo, $this>
-     */
-    public function repo(): BelongsTo
-    {
-        return $this->belongsTo(GithubRepo::class, 'github_repo_id');
-    }
-
     /** @return array<string, mixed> */
     public function toArrayForUi(): array
     {
         return [
             'id' => (int) $this->id,
             'source' => (string) $this->source,
-            'repoFullName' => (string) ($this->repo_full_name ?? ''),
-            'commitSha' => (string) ($this->commit_sha ?? ''),
-            'commitMessage' => (string) ($this->commit_message ?? ''),
-            'pusherLogin' => (string) ($this->pusher_login ?? ''),
+            'engine' => (string) ($this->engine ?: self::ENGINE_ZAP),
+            'monitorId' => $this->monitor_id === null ? null : (string) $this->monitor_id,
+            'monitorName' => (string) ($this->monitor_name ?? ''),
             'domainUrl' => (string) $this->domain_url,
             'status' => (string) $this->status,
             'summary' => (string) $this->summary,
             'details' => $this->details ?? [],
+            'alertHigh' => (int) $this->alert_high,
+            'alertMedium' => (int) $this->alert_medium,
+            'alertLow' => (int) $this->alert_low,
+            'alertInfo' => (int) $this->alert_info,
+            'exitCode' => $this->exit_code === null ? null : (int) $this->exit_code,
             'scannedAt' => DashboardDatetime::format($this->scanned_at?->toIso8601String() ?? now()->toIso8601String()),
             'scannedAtIso' => $this->scanned_at?->toIso8601String(),
         ];

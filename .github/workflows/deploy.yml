@@ -40,6 +40,11 @@ jobs:
             npm ci
             npm run build
 
+            # OWASP ZAP (Docker baseline scanner) for daily domain security scans
+            chmod +x scripts/install-zap.sh
+            ZAP_DOCKER_IMAGE="${ZAP_DOCKER_IMAGE:-ghcr.io/zaproxy/zaproxy:stable}" \
+              bash scripts/install-zap.sh
+
             php artisan migrate --force
             php artisan storage:link --force
             php artisan config:cache

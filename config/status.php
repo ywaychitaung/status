@@ -63,6 +63,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | OWASP ZAP (weekly domain security scans)
+    |--------------------------------------------------------------------------
+    |
+    | Runs zap-baseline.py via Docker against every active monitor URL.
+    | Default: Saturday 06:00 Asia/Singapore (UTC+8).
+    | @see https://www.zaproxy.org/docs/docker/baseline-scan/
+    |
+    */
+
+    'zap' => [
+        'enabled' => (bool) env('ZAP_ENABLED', true),
+        /** Cron in ZAP_TIMEZONE (minute hour dom month dow). 6 = Saturday. */
+        'cron_expression' => env('ZAP_CRON', '0 6 * * 6'),
+        'timezone' => env('ZAP_TIMEZONE', 'Asia/Singapore'),
+        'schedule_label' => env('ZAP_SCHEDULE_LABEL', 'Every Saturday at 6:00 AM SGT'),
+        'docker_image' => env('ZAP_DOCKER_IMAGE', 'ghcr.io/zaproxy/zaproxy:stable'),
+        /** Minutes the ZAP spider is allowed to run per target. */
+        'spider_minutes' => (int) env('ZAP_SPIDER_MINUTES', 1),
+        /** Hard timeout for one docker scan process. */
+        'timeout_seconds' => (int) env('ZAP_TIMEOUT_SECONDS', 900),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Alerting
     |--------------------------------------------------------------------------
     */
@@ -101,6 +125,7 @@ return [
         'admin' => '/admin',
         'alerts' => '/alerts',
         'audits' => '/audits',
+        'security' => '/security',
         'account' => '/account',
         'github' => 'https://github.com/ywaychitaung/status',
     ],

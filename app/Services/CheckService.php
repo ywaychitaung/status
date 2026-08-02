@@ -32,43 +32,15 @@ class CheckService
         $checked = 0;
 
         foreach ($monitors as $monitor) {
-            try {
-                $url = $this->resolveMonitorUrl($monitor['url']);
-            } catch (Throwable $error) {
-                Log::error("Skipping monitor {$monitor['id']}: ".$error->getMessage());
+            $outcome = $this->checkMonitor($monitor, $now, touchSummary: false);
 
+            if ($outcome === null) {
                 continue;
             }
 
-            $result = $this->checkUrl($url);
-            $previousUp = $this->previousUp($monitor['id']);
-            $becameDown = $previousUp !== false && $result['up'] === false;
-            $becameUp = $previousUp === false && $result['up'] === true;
-
-            if ($becameDown) {
+            if ($outcome['becameDown']) {
                 $summary['lastOutageAt'] = $now;
-                $this->openIncident($monitor['id'], $monitor['name'], $url, $now, $result);
-            } elseif (! $result['up']) {
-                $this->openIncident($monitor['id'], $monitor['name'], $url, $now, $result);
-            } elseif ($becameUp) {
-                $this->resolveIncident($monitor['id'], $now);
             }
-
-            $status = [
-                'id' => $monitor['id'],
-                'name' => $monitor['name'],
-                'url' => $url,
-                'checkedAt' => $now,
-                ...$result,
-            ];
-
-            $this->persistStatus($monitor['id'], $monitor['name'], $url, $now, $result);
-
-            $this->alerts->notifyStatusChange(
-                ['id' => $monitor['id'], 'name' => $monitor['name'], 'url' => $url],
-                $status,
-                $previousUp
-            );
 
             $checked++;
         }
@@ -83,6 +55,71 @@ class CheckService
         $this->events->notifyUpdate();
 
         return $checked;
+    }
+
+    /**
+     * Probe one monitor immediately (e.g. right after create/reactivate)
+     * and write website_statuses so the UI is not stuck on "No checks yet".
+     *
+     * @param  array{id: string, name: string, url: string}  $monitor
+     * @return array{up: bool, statusCode: int|null, responseTimeMs: int|null, error: string|null, becameDown: bool}|null
+     */
+    public function checkMonitor(array $monitor, ?string $now = null, bool $touchSummary = true): ?array
+    {
+        $now ??= DashboardDatetime::nowIso();
+
+        try {
+            $url = $this->resolveMonitorUrl($monitor['url']);
+        } catch (Throwable $error) {
+            Log::error("Skipping monitor {$monitor['id']}: ".$error->getMessage());
+
+            return null;
+        }
+
+        $result = $this->checkUrl($url);
+        $previousUp = $this->previousUp($monitor['id']);
+        $becameDown = $previousUp !== false && $result['up'] === false;
+        $becameUp = $previousUp === false && $result['up'] === true;
+
+        if ($becameDown) {
+            $this->openIncident($monitor['id'], $monitor['name'], $url, $now, $result);
+        } elseif (! $result['up']) {
+            $this->openIncident($monitor['id'], $monitor['name'], $url, $now, $result);
+        } elseif ($becameUp) {
+            $this->resolveIncident($monitor['id'], $now);
+        }
+
+        $status = [
+            'id' => $monitor['id'],
+            'name' => $monitor['name'],
+            'url' => $url,
+            'checkedAt' => $now,
+            ...$result,
+        ];
+
+        $this->persistStatus($monitor['id'], $monitor['name'], $url, $now, $result);
+
+        $this->alerts->notifyStatusChange(
+            ['id' => $monitor['id'], 'name' => $monitor['name'], 'url' => $url],
+            $status,
+            $previousUp
+        );
+
+        if ($touchSummary) {
+            $summaryUpdate = ['updated_at' => $now];
+
+            if ($becameDown) {
+                $summaryUpdate['last_outage_at'] = $now;
+            }
+
+            DB::table('app_summary')
+                ->where('id', AppSummary::SINGLETON_ID)
+                ->update($summaryUpdate);
+
+            $this->events->notifyUpdate();
+        }
+
+        return $result + ['becameDown' => $becameDown];
     }
 
     /**

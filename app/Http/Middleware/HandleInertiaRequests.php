@@ -54,6 +54,12 @@ class HandleInertiaRequests extends Middleware
                     'storage' => config('status.monitor.storage'),
                     'stream' => config('status.monitor.stream'),
                 ],
+                'zap' => [
+                    'enabled' => (bool) config('status.zap.enabled'),
+                    'cronExpression' => (string) config('status.zap.cron_expression'),
+                    'timezone' => (string) config('status.zap.timezone'),
+                    'scheduleLabel' => (string) config('status.zap.schedule_label'),
+                ],
                 'theme' => [
                     'storageKey' => config('status.theme.storage_key'),
                     'shortcutKey' => config('status.theme.shortcut_key'),

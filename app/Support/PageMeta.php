@@ -37,6 +37,11 @@ class PageMeta
             'title' => 'Audits',
             'subtitle' => 'Login, logout, account, and website change history',
         ],
+        '/security' => [
+            'active' => 'security',
+            'title' => 'Security',
+            'subtitle' => 'OWASP ZAP weekly scans for monitored website domains',
+        ],
         '/account' => [
             'active' => 'account',
             'title' => 'Account',

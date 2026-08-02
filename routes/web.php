@@ -7,6 +7,7 @@ use App\Http\Controllers\AuditsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IncidentsController;
+use App\Http\Controllers\SecurityController;
 use App\Http\Controllers\ServicesController;
 use Illuminate\Support\Facades\Route;
 
@@ -55,6 +56,9 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/alerts', [AlertsController::class, 'update'])->name('alerts.update');
 
     Route::get('/audits', [AuditsController::class, 'index'])->name('audits');
+
+    Route::get('/security', [SecurityController::class, 'index'])->name('security');
+    Route::post('/security/scan', [SecurityController::class, 'scanNow'])->name('security.scan');
 
     Route::get('/account', [AccountController::class, 'index'])->name('account');
     Route::post('/account', [AccountController::class, 'dispatchAction'])->name('account.action');

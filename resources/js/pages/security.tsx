@@ -11,12 +11,9 @@ export default function SecurityPage({
     meta,
     frame,
     user,
-    configured,
-    installUrl,
-    installations,
-    availableRepos,
-    linkedRepos,
     scans,
+    zapReady,
+    monitorCount,
     flash,
     error,
 }: SecurityPageProps) {
@@ -39,12 +36,9 @@ export default function SecurityPage({
                 authName={user?.name ?? null}
             >
                 <SecurityView
-                    configured={configured}
-                    installUrl={installUrl}
-                    installations={installations}
-                    availableRepos={availableRepos}
-                    linkedRepos={linkedRepos}
                     scans={scans}
+                    zapReady={zapReady}
+                    monitorCount={monitorCount}
                     flash={flash}
                     error={error}
                 />
