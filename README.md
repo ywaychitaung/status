@@ -1,6 +1,6 @@
 # Uptime Monitor
 
-A minimalist uptime monitoring dashboard built with Laravel 12, Inertia, React,
+An uptime monitoring dashboard built with Laravel 12, Inertia, React,
 and Tailwind CSS.
 
 It checks websites every minute, stores monitors/status/incidents in Postgres,
@@ -194,17 +194,17 @@ Notes:
 
 ## Routes
 
-| Route | Auth | Purpose |
-| --- | --- | --- |
-| `GET /` | public | Dashboard (`?login=1` opens the login dialog) |
-| `GET /services` | public | All monitored endpoints |
-| `GET /incidents` | public | Outage and recovery timeline |
-| `GET /api/stream` | public | SSE snapshot feed |
-| `POST /login` | guest | Username + password sign-in |
-| `POST /logout` | auth | Sign out |
-| `GET /admin` | auth | Manage monitored websites |
-| `GET /audits` | auth | Login, account, and website change history |
-| `GET /account` | auth | Profile and password |
+| Route             | Auth   | Purpose                                       |
+| ----------------- | ------ | --------------------------------------------- |
+| `GET /`           | public | Dashboard (`?login=1` opens the login dialog) |
+| `GET /services`   | public | All monitored endpoints                       |
+| `GET /incidents`  | public | Outage and recovery timeline                  |
+| `GET /api/stream` | public | SSE snapshot feed                             |
+| `POST /login`     | guest  | Username + password sign-in                   |
+| `POST /logout`    | auth   | Sign out                                      |
+| `GET /admin`      | auth   | Manage monitored websites                     |
+| `GET /audits`     | auth   | Login, account, and website change history    |
+| `GET /account`    | auth   | Profile and password                          |
 
 ## Project Layout
 

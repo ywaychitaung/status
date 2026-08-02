@@ -1,16 +1,95 @@
-import { ExternalLink } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { formatDashboardDatetime } from '@/lib/datetime';
-import type { Snapshot } from '@/types/status';
+import type { MonitorStatus, Snapshot } from '@/types/status';
 
 export interface ServicesViewProps {
     snapshot: Snapshot;
 }
 
+type SortKey = 'no' | 'name' | 'status' | 'code' | 'latency' | 'checkedAt' | 'url';
+type SortDir = 'asc' | 'desc';
+
+const COLUMNS: { key: SortKey; label: string }[] = [
+    { key: 'no', label: 'No.' },
+    { key: 'name', label: 'Service' },
+    { key: 'status', label: 'Status' },
+    { key: 'code', label: 'Code' },
+    { key: 'latency', label: 'Latency' },
+    { key: 'checkedAt', label: 'Last checked' },
+    { key: 'url', label: 'URL' },
+];
+
+function compareStatuses(
+    a: MonitorStatus & { index: number },
+    b: MonitorStatus & { index: number },
+    key: SortKey,
+    dir: SortDir,
+): number {
+    const mul = dir === 'asc' ? 1 : -1;
+    let result = 0;
+
+    switch (key) {
+        case 'no':
+            result = a.index - b.index;
+            break;
+        case 'name':
+            result = a.name.localeCompare(b.name);
+            break;
+        case 'status':
+            result = Number(b.up) - Number(a.up);
+            break;
+        case 'code':
+            result = (a.statusCode ?? -1) - (b.statusCode ?? -1);
+            break;
+        case 'latency':
+            result = (a.responseTimeMs ?? Number.POSITIVE_INFINITY) - (b.responseTimeMs ?? Number.POSITIVE_INFINITY);
+            break;
+        case 'checkedAt':
+            result = a.checkedAt.localeCompare(b.checkedAt);
+            break;
+        case 'url':
+            result = a.url.localeCompare(b.url);
+            break;
+    }
+
+    return result * mul;
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+    if (!active) {
+        return <ArrowUpDown size={12} className="shrink-0 opacity-40" aria-hidden />;
+    }
+
+    return dir === 'asc' ? (
+        <ArrowUp size={12} className="shrink-0 text-zinc-700 dark:text-zinc-200" aria-hidden />
+    ) : (
+        <ArrowDown size={12} className="shrink-0 text-zinc-700 dark:text-zinc-200" aria-hidden />
+    );
+}
+
 export default function ServicesView({ snapshot }: ServicesViewProps) {
+    const [sortKey, setSortKey] = useState<SortKey>('no');
+    const [sortDir, setSortDir] = useState<SortDir>('asc');
+
     const total = snapshot.statuses.length;
     const upCount = snapshot.statuses.filter((s) => s.up).length;
     const downCount = total - upCount;
+
+    const rows = useMemo(() => {
+        const indexed = snapshot.statuses.map((status, index) => ({ ...status, index }));
+        return [...indexed].sort((a, b) => compareStatuses(a, b, sortKey, sortDir));
+    }, [snapshot.statuses, sortKey, sortDir]);
+
+    const toggleSort = (key: SortKey) => {
+        if (sortKey === key) {
+            setSortDir((current) => (current === 'asc' ? 'desc' : 'asc'));
+            return;
+        }
+        setSortKey(key);
+        setSortDir('asc');
+    };
 
     return (
         <>
@@ -43,17 +122,29 @@ export default function ServicesView({ snapshot }: ServicesViewProps) {
                     <table className="min-w-full text-left text-sm">
                         <thead className="bg-zinc-50 text-[11px] tracking-wider text-zinc-500 uppercase dark:bg-zinc-950/60 dark:text-zinc-400">
                             <tr>
-                                <th className="px-5 py-3 font-medium">Service</th>
-                                <th className="px-5 py-3 font-medium">Status</th>
-                                <th className="px-5 py-3 font-medium">Code</th>
-                                <th className="px-5 py-3 font-medium">Latency</th>
-                                <th className="px-5 py-3 font-medium">Last checked</th>
-                                <th className="px-5 py-3 font-medium">URL</th>
+                                {COLUMNS.map((column) => {
+                                    const active = sortKey === column.key;
+                                    return (
+                                        <th key={column.key} className="px-5 py-3 font-medium">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleSort(column.key)}
+                                                className="inline-flex items-center gap-1.5 transition-colors hover:text-zinc-800 dark:hover:text-zinc-200"
+                                                aria-label={`Sort by ${column.label}`}
+                                                aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                                            >
+                                                <span>{column.label}</span>
+                                                <SortIcon active={active} dir={sortDir} />
+                                            </button>
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                            {snapshot.statuses.map((status) => (
+                            {rows.map((status, rowIndex) => (
                                 <tr key={status.id} className="transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-950/40">
+                                    <td className="px-5 py-4 text-zinc-500 tabular-nums dark:text-zinc-400">{rowIndex + 1}</td>
                                     <td className="px-5 py-4">
                                         <div className="flex items-center gap-2">
                                             <span className={`h-2 w-2 rounded-full ${status.up ? 'bg-emerald-500' : 'bg-red-500'}`} />
