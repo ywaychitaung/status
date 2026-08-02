@@ -1,13 +1,13 @@
 <?php
 
-use App\Services\FieldCrypto;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 /**
- * Re-encrypt FieldCrypto / plaintext columns with Laravel Crypt (APP_KEY).
+ * Re-encrypt legacy FieldCrypto / plaintext columns with Laravel Crypt (APP_KEY).
  */
 return new class extends Migration
 {
@@ -23,8 +23,6 @@ return new class extends Migration
 
     public function up(): void
     {
-        $legacy = app(FieldCrypto::class);
-
         foreach ($this->tables as [$table, $columns]) {
             if (! Schema::hasTable($table)) {
                 continue;
@@ -32,13 +30,13 @@ return new class extends Migration
 
             $pk = in_array($table, ['website_statuses', 'monitor_statuses'], true) ? 'monitor_id' : 'id';
 
-            DB::table($table)->orderBy($pk)->chunkById(100, function ($rows) use ($table, $columns, $pk, $legacy): void {
+            DB::table($table)->orderBy($pk)->chunkById(100, function ($rows) use ($table, $columns, $pk): void {
                 foreach ($rows as $row) {
                     $updates = [];
 
                     foreach ($columns as $column) {
                         $value = $row->{$column} ?? null;
-                        $converted = $this->toLaravelEncrypted($value, $legacy);
+                        $converted = $this->toLaravelEncrypted($value);
 
                         if ($converted !== $value) {
                             $updates[$column] = $converted;
@@ -58,7 +56,7 @@ return new class extends Migration
         // Irreversible: ciphertext is Laravel Crypt after this migration.
     }
 
-    private function toLaravelEncrypted(mixed $value, FieldCrypto $legacy): mixed
+    private function toLaravelEncrypted(mixed $value): mixed
     {
         if ($value === null || $value === '') {
             return $value;
@@ -76,10 +74,55 @@ return new class extends Migration
             // Not Laravel ciphertext yet.
         }
 
-        if ($legacy->isEncrypted($value)) {
-            return Crypt::encryptString($legacy->decrypt($value));
+        if ($this->isLegacyEncrypted($value)) {
+            return Crypt::encryptString($this->decryptLegacy($value));
         }
 
         return Crypt::encryptString($value);
+    }
+
+    private function isLegacyEncrypted(string $payload): bool
+    {
+        return str_starts_with($payload, 'aes256gcm$')
+            || str_starts_with($payload, 'v1$');
+    }
+
+    private function decryptLegacy(string $payload): string
+    {
+        $parts = explode('$', $payload);
+        $version = $parts[0] ?? '';
+        $ivHex = $parts[1] ?? '';
+        $dataHex = $parts[2] ?? '';
+
+        if (($version !== 'aes256gcm' && $version !== 'v1') || $ivHex === '' || $dataHex === '') {
+            throw new RuntimeException('Invalid encrypted field');
+        }
+
+        $iv = @hex2bin($ivHex);
+        $data = @hex2bin($dataHex);
+
+        if ($iv === false || $data === false || strlen($data) < 16) {
+            throw new RuntimeException('Invalid encrypted field');
+        }
+
+        $key = (string) config('app.key');
+        if (str_starts_with($key, 'base64:')) {
+            $key = (string) base64_decode(substr($key, 7), true);
+        }
+
+        $plaintext = openssl_decrypt(
+            substr($data, 0, -16),
+            'aes-256-gcm',
+            $key,
+            OPENSSL_RAW_DATA,
+            $iv,
+            substr($data, -16)
+        );
+
+        if ($plaintext === false) {
+            throw new RuntimeException('Field decryption failed');
+        }
+
+        return $plaintext;
     }
 };

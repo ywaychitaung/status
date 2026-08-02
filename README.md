@@ -9,7 +9,7 @@ Discord/Telegram.
 
 > Auth uses Laravel’s session guard + Sanctum. Sensitive fields use Laravel’s
 > `encrypted` cast / `Crypt` (`APP_KEY`). Login matches `username_hash` /
-> `email_hash` / `url_hash` blind indexes via `ENCRYPTION_KEY`.
+> `email_hash` / `url_hash` blind indexes keyed from the same `APP_KEY`.
 
 ## Features
 
@@ -61,9 +61,6 @@ SESSION_DRIVER=file
 CACHE_STORE=file
 QUEUE_CONNECTION=sync
 
-# Blind-index key for username/email/url hashes (64 hex chars). openssl rand -hex 32
-ENCRYPTION_KEY=
-
 # Optional: seeded into `alert_channels` on first migrate only.
 # Afterwards manage channels in the Alerts tab (/alerts).
 ALERT_DISCORD_WEBHOOK_URL=
@@ -73,8 +70,8 @@ ALERT_TELEGRAM_CHAT_ID=
 
 Notes:
 
-- Field values use Laravel Crypt (`APP_KEY` + `encrypted` casts). `ENCRYPTION_KEY`
-  is required only for blind indexes (`username_hash`, `email_hash`, `url_hash`).
+- Field values and blind indexes (`username_hash`, `email_hash`, `url_hash`) use
+  Laravel Crypt / HMAC keyed from `APP_KEY` (`php artisan key:generate`).
 - Passwords use Laravel Hash (`HASH_DRIVER`, default `argon2id`). Users include
   Sanctum `personal_access_tokens` plus Laravel defaults (`sessions`,
   `password_reset_tokens`, `cache`, `jobs`, `failed_jobs`, …). Login accepts

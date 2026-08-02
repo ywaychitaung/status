@@ -28,17 +28,15 @@ class FieldCryptoTest extends TestCase
             hash_hmac('sha256', 'blind:admin', $this->crypto->rawKey()),
             $first
         );
-        // Value produced by _legacy/lib/cryptoFields.ts for the same input.
-        $this->assertSame('965f4d9d62d25b7eb05b4deed044e81cc64eb4f8e4326af4bf8e78e8ce0048e2', $first);
     }
 
-    public function test_it_rejects_a_key_that_is_not_64_hex_characters(): void
+    public function test_it_rejects_a_missing_app_key(): void
     {
-        config(['status.encryption_key' => 'too-short']);
+        config(['app.key' => '']);
 
         $this->expectException(RuntimeException::class);
 
-        (new FieldCrypto)->keyHex();
+        (new FieldCrypto)->rawKey();
     }
 
     public function test_laravel_crypt_round_trips_strings(): void
