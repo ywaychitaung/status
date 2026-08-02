@@ -19,6 +19,18 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
+            export COMPOSER_ALLOW_SUPERUSER=1
+
+            # Lockfile requires PHP >= 8.4.1 — prefer php8.4 over distro default 8.3.
+            if command -v php8.4 >/dev/null 2>&1; then
+              export PATH="/usr/bin:${PATH}"
+              update-alternatives --set php /usr/bin/php8.4 >/dev/null 2>&1 || true
+            fi
+
+            php -v
+            php -r 'exit(version_compare(PHP_VERSION, "8.4.1", ">=") ? 0 : 1);' \
+              || { echo "PHP >= 8.4.1 required on the droplet"; exit 1; }
+
             cd /opt/status
 
             git fetch origin
@@ -34,10 +46,10 @@ jobs:
             php artisan route:cache
             php artisan view:cache
 
-            # Clear stale OPcache / workers after code + asset deploy.
-            if systemctl list-unit-files | grep -qE '^php[0-9.]*-fpm\.service'; then
-              systemctl reload php8.4-fpm 2>/dev/null \
-                || systemctl reload php8.3-fpm 2>/dev/null \
+            if systemctl list-unit-files | grep -qE '^php8\.4-fpm\.service'; then
+              systemctl reload php8.4-fpm
+            elif systemctl list-unit-files | grep -qE '^php[0-9.]*-fpm\.service'; then
+              systemctl reload php8.3-fpm 2>/dev/null \
                 || systemctl reload php8.2-fpm 2>/dev/null \
                 || true
             fi
@@ -45,10 +57,4 @@ jobs:
             if systemctl list-unit-files | grep -q '^nginx\.service'; then
               nginx -t
               systemctl reload nginx
-            fi
-
-            # Optional Laravel app/queue units (if you kept a status.service).
-            if systemctl list-unit-files | grep -q '^status\.service'; then
-              systemctl restart status
-              systemctl is-active --quiet status
             fi
