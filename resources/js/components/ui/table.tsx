@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 /* -------------------------------------------------------------------------- */
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    <div className="relative w-full min-w-0">
         <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
     </div>
 ));
@@ -256,8 +256,8 @@ function DataTable<T>({
     const rangeEnd = Math.min(safePage * pageSize, filteredSorted.length);
 
     return (
-        <div className={cn('space-y-3', className)}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className={cn('min-w-0 max-w-full space-y-3', className)}>
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">{toolbar}</div>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -283,7 +283,7 @@ function DataTable<T>({
                 </DropdownMenu>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-zinc-200/90 dark:border-zinc-800">
+            <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-zinc-200/90 dark:border-zinc-800">
                 <Table className="min-w-full">
                     <TableHeader className="bg-zinc-50 dark:bg-zinc-950/60">
                         <TableRow className="hover:bg-transparent dark:hover:bg-transparent">

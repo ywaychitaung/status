@@ -34,10 +34,10 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
     const availability = totalWebsites > 0 ? Math.round((upWebsites / totalWebsites) * 1000) / 10 : 0;
 
     return (
-        <>
-            <section className="animate-rise grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <article className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
-                    <div className="flex items-center justify-between">
+        <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
+            <section className="animate-rise grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-4">
+                <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
+                    <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-medium tracking-wider text-zinc-500 uppercase dark:text-zinc-400">Monitored</p>
                         <span className="rounded-lg bg-zinc-100 p-2 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                             <Globe size={16} />
@@ -47,8 +47,8 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                     <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Active endpoints</p>
                 </article>
 
-                <article className="rounded-2xl border border-emerald-200/80 bg-linear-to-br from-emerald-50 to-white p-5 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/40 dark:to-zinc-900/80">
-                    <div className="flex items-center justify-between">
+                <article className="min-w-0 rounded-2xl border border-emerald-200/80 bg-linear-to-br from-emerald-50 to-white p-4 shadow-sm sm:p-5 dark:border-emerald-900/40 dark:from-emerald-950/40 dark:to-zinc-900/80">
+                    <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-medium tracking-wider text-emerald-700/80 uppercase dark:text-emerald-300/80">Online</p>
                         <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-300">
                             <ShieldCheck size={16} />
@@ -58,8 +58,8 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                     <p className="mt-1 text-xs text-emerald-700/70 dark:text-emerald-300/60">Responding with 200</p>
                 </article>
 
-                <article className="rounded-2xl border border-red-200/80 bg-linear-to-br from-red-50 to-white p-5 shadow-sm dark:border-red-900/40 dark:from-red-950/40 dark:to-zinc-900/80">
-                    <div className="flex items-center justify-between">
+                <article className="min-w-0 rounded-2xl border border-red-200/80 bg-linear-to-br from-red-50 to-white p-4 shadow-sm sm:p-5 dark:border-red-900/40 dark:from-red-950/40 dark:to-zinc-900/80">
+                    <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-medium tracking-wider text-red-700/80 uppercase dark:text-red-300/80">Offline</p>
                         <span className="rounded-lg bg-red-500/10 p-2 text-red-600 dark:text-red-300">
                             <ShieldX size={16} />
@@ -69,8 +69,8 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                     <p className="mt-1 text-xs text-red-700/70 dark:text-red-300/60">Needs attention</p>
                 </article>
 
-                <article className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
-                    <div className="flex items-center justify-between">
+                <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
+                    <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-medium tracking-wider text-zinc-500 uppercase dark:text-zinc-400">Avg latency</p>
                         <span className="rounded-lg bg-sky-500/10 p-2 text-sky-600 dark:text-sky-300">
                             <Zap size={16} />
@@ -84,10 +84,10 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                 </article>
             </section>
 
-            <section className="animate-rise-1 grid gap-4 lg:grid-cols-3">
-                <article className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm lg:col-span-2 dark:border-zinc-800 dark:bg-zinc-900/80">
+            <section className="animate-rise-1 grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-5">
+                <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 lg:col-span-2 dark:border-zinc-800 dark:bg-zinc-900/80">
                     <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                             <p className="text-sm font-semibold tracking-tight">Availability</p>
                             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Current snapshot health ratio</p>
                         </div>
@@ -112,13 +112,13 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                     </div>
                 </article>
 
-                <article className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+                <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
                     <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                             <p className="text-sm font-semibold tracking-tight">Since last outage</p>
                             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Continuous uptime clock</p>
                         </div>
-                        <span className="rounded-lg bg-zinc-100 p-2 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                        <span className="shrink-0 rounded-lg bg-zinc-100 p-2 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                             <Timer size={16} />
                         </span>
                     </div>
@@ -128,21 +128,21 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                 </article>
             </section>
 
-            <section className="animate-rise-2 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]">
-                <div className="space-y-4">
-                    <div className="flex items-end justify-between gap-3">
-                        <div>
+            <section className="animate-rise-2 grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:gap-5">
+                <div className="min-w-0 space-y-4">
+                    <div className="flex min-w-0 items-end justify-between gap-3">
+                        <div className="min-w-0">
                             <h2 className="text-sm font-semibold tracking-tight">Service monitors</h2>
                             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                                 Live checks every minute via {app.monitor.engine} + {app.monitor.storage}
                             </p>
                         </div>
-                        <Link href={app.links.services} className="text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
+                        <Link href={app.links.services} className="shrink-0 text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400">
                             View all
                         </Link>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 md:gap-5">
                         {snapshot.statuses.map((status) => {
                             const latencyPct =
                                 status.responseTimeMs != null && maxLatency > 0
@@ -150,7 +150,7 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                                     : 0;
 
                             return (
-                                <article key={status.id} className={status.up ? MONITOR_UP : MONITOR_DOWN}>
+                                <article key={status.id} className={`min-w-0 ${status.up ? MONITOR_UP : MONITOR_DOWN}`}>
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2">
@@ -166,18 +166,18 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                                                 {status.url.replace(/^https?:\/\//, '')}
                                             </a>
                                         </div>
-                                        <span className={status.up ? BADGE_UP : BADGE_DOWN}>
+                                        <span className={`shrink-0 ${status.up ? BADGE_UP : BADGE_DOWN}`}>
                                             <span className={`h-1.5 w-1.5 rounded-full ${status.up ? 'bg-emerald-500' : 'bg-red-500'}`} />
                                             {status.up ? 'Up' : 'Down'}
                                         </span>
                                     </div>
 
                                     <div className="mt-5 grid grid-cols-2 gap-3 text-xs">
-                                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-zinc-950/50">
+                                        <div className="min-w-0 rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-zinc-950/50">
                                             <p className="text-zinc-400 dark:text-zinc-500">Status code</p>
                                             <p className="mt-1 text-sm font-semibold tabular-nums">{status.statusCode ?? 'N/A'}</p>
                                         </div>
-                                        <div className="rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-zinc-950/50">
+                                        <div className="min-w-0 rounded-xl bg-zinc-50 px-3 py-2.5 dark:bg-zinc-950/50">
                                             <p className="text-zinc-400 dark:text-zinc-500">Response</p>
                                             <p className="mt-1 text-sm font-semibold tabular-nums">
                                                 {status.responseTimeMs !== null ? `${status.responseTimeMs} ms` : 'N/A'}
@@ -185,10 +185,10 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                                         </div>
                                     </div>
 
-                                    <div className="mt-4">
-                                        <div className="mb-1.5 flex items-center justify-between text-[11px] text-zinc-400">
-                                            <span>Latency load</span>
-                                            <span>{formatDashboardDatetime(status.checkedAt)}</span>
+                                    <div className="mt-4 min-w-0">
+                                        <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-zinc-400">
+                                            <span className="shrink-0">Latency load</span>
+                                            <span className="truncate tabular-nums">{formatDashboardDatetime(status.checkedAt)}</span>
                                         </div>
                                         <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
                                             <div
@@ -198,42 +198,42 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                                         </div>
                                     </div>
 
-                                    {status.error && <p className="mt-3 text-xs text-red-600 dark:text-red-300">{status.error}</p>}
+                                    {status.error && <p className="mt-3 text-xs break-words text-red-600 dark:text-red-300">{status.error}</p>}
                                 </article>
                             );
                         })}
                     </div>
                 </div>
 
-                <aside className="animate-rise-3 space-y-4">
-                    <article className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+                <aside className="animate-rise-3 min-w-0 space-y-4 md:space-y-5">
+                    <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
                         <div className="flex items-center gap-2">
-                            <Clock3 size={16} className="text-zinc-500" />
+                            <Clock3 size={16} className="shrink-0 text-zinc-500" />
                             <p className="text-sm font-semibold tracking-tight">Check schedule</p>
                         </div>
                         <dl className="mt-4 space-y-3 text-sm">
                             <div className="flex items-center justify-between gap-3">
-                                <dt className="text-zinc-500 dark:text-zinc-400">Interval</dt>
-                                <dd className="font-medium">{app.monitor.intervalLabel}</dd>
+                                <dt className="shrink-0 text-zinc-500 dark:text-zinc-400">Interval</dt>
+                                <dd className="min-w-0 truncate font-medium">{app.monitor.intervalLabel}</dd>
                             </div>
                             <div className="flex items-center justify-between gap-3">
-                                <dt className="text-zinc-500 dark:text-zinc-400">Engine</dt>
-                                <dd className="font-medium">{app.monitor.engine}</dd>
+                                <dt className="shrink-0 text-zinc-500 dark:text-zinc-400">Engine</dt>
+                                <dd className="min-w-0 truncate font-medium">{app.monitor.engine}</dd>
                             </div>
                             <div className="flex items-center justify-between gap-3">
-                                <dt className="text-zinc-500 dark:text-zinc-400">Storage</dt>
-                                <dd className="font-medium">{app.monitor.storage}</dd>
+                                <dt className="shrink-0 text-zinc-500 dark:text-zinc-400">Storage</dt>
+                                <dd className="min-w-0 truncate font-medium">{app.monitor.storage}</dd>
                             </div>
                             <div className="flex items-center justify-between gap-3">
-                                <dt className="text-zinc-500 dark:text-zinc-400">Stream</dt>
-                                <dd className="font-medium">{app.monitor.stream}</dd>
+                                <dt className="shrink-0 text-zinc-500 dark:text-zinc-400">Stream</dt>
+                                <dd className="min-w-0 truncate font-medium">{app.monitor.stream}</dd>
                             </div>
                         </dl>
                     </article>
 
-                    <article className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+                    <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
                         <div className="flex items-center gap-2">
-                            <Activity size={16} className="text-zinc-500" />
+                            <Activity size={16} className="shrink-0 text-zinc-500" />
                             <p className="text-sm font-semibold tracking-tight">Latency ranking</p>
                         </div>
                         <ul className="mt-4 space-y-3">
@@ -246,10 +246,10 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                                             : 0;
 
                                     return (
-                                        <li key={`rank-${status.id}`}>
+                                        <li key={`rank-${status.id}`} className="min-w-0">
                                             <div className="mb-1 flex items-center justify-between gap-2 text-xs">
                                                 <span className="truncate font-medium">{status.name}</span>
-                                                <span className="text-zinc-500 tabular-nums dark:text-zinc-400">
+                                                <span className="shrink-0 text-zinc-500 tabular-nums dark:text-zinc-400">
                                                     {status.responseTimeMs != null ? `${status.responseTimeMs} ms` : 'N/A'}
                                                 </span>
                                             </div>
@@ -266,14 +266,14 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                     </article>
 
                     <article
-                        className={`rounded-2xl border p-5 shadow-sm ${
+                        className={`min-w-0 rounded-2xl border p-4 shadow-sm sm:p-5 ${
                             allUp
                                 ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30'
                                 : 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30'
                         }`}
                     >
                         <p className="text-sm font-semibold tracking-tight">System verdict</p>
-                        <p className="mt-2 text-sm leading-relaxed text-current/80">
+                        <p className="mt-2 text-sm leading-relaxed break-words text-current/80">
                             {healthLabel}. Checks run every minute and push live updates over SSE.
                         </p>
                         <Link href={app.links.incidents} className="mt-3 inline-block text-xs font-medium underline-offset-2 hover:underline">
@@ -282,6 +282,6 @@ export default function DashboardView({ snapshot }: DashboardViewProps) {
                     </article>
                 </aside>
             </section>
-        </>
+        </div>
     );
 }

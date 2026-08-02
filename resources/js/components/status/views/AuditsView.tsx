@@ -160,8 +160,8 @@ export default function AuditsView({ audits }: AuditsViewProps) {
     );
 
     return (
-        <div className="w-full space-y-6">
-            <section className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div className="w-full min-w-0 max-w-full space-y-6">
+            <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
                 <DataTable
                     data={audits}
                     columns={columns}
@@ -171,7 +171,7 @@ export default function AuditsView({ audits }: AuditsViewProps) {
                     defaultPageSize={25}
                     emptyMessage="No audit events yet."
                     toolbar={
-                        <div>
+                        <div className="min-w-0">
                             <h2 className="text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">
                                 Audit log ({audits.length})
                             </h2>

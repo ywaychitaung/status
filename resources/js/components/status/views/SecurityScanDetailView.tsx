@@ -131,7 +131,7 @@ export default function SecurityScanDetailView({ scan }: SecurityScanDetailViewP
     const findings = findingsFromScan(scan);
 
     return (
-        <div className="w-full space-y-6">
+        <div className="w-full min-w-0 max-w-full space-y-6">
             <div>
                 <Link
                     href="/security"
@@ -141,10 +141,10 @@ export default function SecurityScanDetailView({ scan }: SecurityScanDetailViewP
                 </Link>
             </div>
 
-            <section className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <h2 className="text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">
+            <section className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                        <h2 className="text-sm font-semibold tracking-tight wrap-break-word text-zinc-800 dark:text-zinc-100">
                             {scan.monitorName || 'Website scan'}
                         </h2>
                         <p className="mt-1 break-all text-xs text-zinc-500 dark:text-zinc-400">{scan.domainUrl}</p>

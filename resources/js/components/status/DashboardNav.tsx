@@ -81,7 +81,7 @@ function navClass(active: boolean): string {
 }
 
 function mobileClass(active: boolean): string {
-    return `flex flex-col items-center gap-1 px-1 py-3 text-[11px] font-medium ${
+    return `flex min-w-0 flex-col items-center gap-1 overflow-hidden px-0.5 py-2.5 text-[10px] font-medium ${
         active ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-500 dark:text-zinc-400'
     }`;
 }
@@ -103,8 +103,12 @@ export default function DashboardNav({ active, authName, variant }: DashboardNav
                         className={variant === 'mobile' ? mobileClass(isActive) : navClass(isActive)}
                         aria-current={isActive ? 'page' : undefined}
                     >
-                        <Icon size={variant === 'mobile' ? 18 : 16} />
-                        {item.label}
+                        <Icon size={variant === 'mobile' ? 18 : 16} className="shrink-0" />
+                        {variant === 'mobile' ? (
+                            <span className="w-full truncate text-center">{item.label}</span>
+                        ) : (
+                            item.label
+                        )}
                     </Link>
                 );
             })}

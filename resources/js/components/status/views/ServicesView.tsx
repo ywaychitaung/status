@@ -95,23 +95,23 @@ export default function ServicesView({ snapshot }: ServicesViewProps) {
     );
 
     return (
-        <>
-            <section className="animate-rise grid gap-3 sm:grid-cols-3">
-                <article className="rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div className="min-w-0 max-w-full space-y-4 md:space-y-6">
+            <section className="animate-rise grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-5">
+                <article className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
                     <p className="text-xs tracking-wider text-zinc-500 uppercase">Total</p>
                     <p className="mt-2 text-2xl font-semibold tabular-nums">{total}</p>
                 </article>
-                <article className="rounded-2xl border border-emerald-200/80 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                <article className="min-w-0 rounded-2xl border border-emerald-200/80 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30">
                     <p className="text-xs tracking-wider text-emerald-700/80 uppercase dark:text-emerald-300/80">Up</p>
                     <p className="mt-2 text-2xl font-semibold text-emerald-700 tabular-nums dark:text-emerald-300">{upCount}</p>
                 </article>
-                <article className="rounded-2xl border border-red-200/80 bg-red-50 p-4 shadow-sm dark:border-red-900/40 dark:bg-red-950/30">
+                <article className="min-w-0 rounded-2xl border border-red-200/80 bg-red-50 p-4 shadow-sm dark:border-red-900/40 dark:bg-red-950/30">
                     <p className="text-xs tracking-wider text-red-700/80 uppercase dark:text-red-300/80">Down</p>
                     <p className="mt-2 text-2xl font-semibold text-red-700 tabular-nums dark:text-red-300">{downCount}</p>
                 </article>
             </section>
 
-            <section className="animate-rise-1 rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+            <section className="animate-rise-1 min-w-0 max-w-full overflow-hidden rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
                 <DataTable
                     data={snapshot.statuses}
                     columns={columns}
@@ -120,7 +120,7 @@ export default function ServicesView({ snapshot }: ServicesViewProps) {
                     defaultPageSize={10}
                     emptyMessage="No services yet."
                     toolbar={
-                        <div>
+                        <div className="min-w-0">
                             <h2 className="text-sm font-semibold tracking-tight">Service catalog</h2>
                             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                                 Updated {formatDashboardDatetime(snapshot.summary.updatedAt)}
@@ -129,6 +129,6 @@ export default function ServicesView({ snapshot }: ServicesViewProps) {
                     }
                 />
             </section>
-        </>
+        </div>
     );
 }

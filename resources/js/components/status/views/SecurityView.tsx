@@ -57,18 +57,24 @@ export default function SecurityView({
     monitorCount,
     activeRun: initialActiveRun,
     flash,
-    error,
+    error: initialError,
 }: SecurityViewProps) {
     const { app } = usePage<StatusSharedProps>().props;
     const scheduleLabel = app.zap?.scheduleLabel ?? 'Every Saturday at 6:00 AM SGT';
     const [activeRun, setActiveRun] = useState<ZapScanRunRecord | null>(initialActiveRun);
     const [starting, setStarting] = useState(false);
+    const [localError, setLocalError] = useState<string | null>(null);
     const [nowMs, setNowMs] = useState(() => Date.now());
 
     useEffect(() => {
         setActiveRun(initialActiveRun);
     }, [initialActiveRun]);
 
+    useEffect(() => {
+        setLocalError(null);
+    }, [initialError, flash]);
+
+    const error = localError ?? initialError;
     const isScanning = Boolean(activeRun?.isActive && activeRun.status === 'running');
 
     useEffect(() => {
@@ -103,7 +109,10 @@ export default function SecurityView({
                     return;
                 }
 
-                const data = (await response.json()) as { activeRun: ZapScanRunRecord | null };
+                const data = (await response.json()) as {
+                    activeRun: ZapScanRunRecord | null;
+                    lastRun?: ZapScanRunRecord | null;
+                };
                 if (cancelled) {
                     return;
                 }
@@ -114,6 +123,11 @@ export default function SecurityView({
                 }
 
                 setActiveRun(null);
+
+                if (data.lastRun?.status === 'failed' && data.lastRun.error) {
+                    setLocalError(data.lastRun.error);
+                }
+
                 router.reload({ only: ['scans', 'activeRun', 'flash', 'error'] });
             } catch {
                 // Keep polling; transient network errors are fine.
@@ -121,11 +135,15 @@ export default function SecurityView({
         };
 
         const id = window.setInterval(poll, 5000);
-        void poll();
+        // Delay the first poll slightly so a just-spawned worker is visible.
+        const first = window.setTimeout(() => {
+            void poll();
+        }, 1500);
 
         return () => {
             cancelled = true;
             window.clearInterval(id);
+            window.clearTimeout(first);
         };
     }, [isScanning]);
 
@@ -151,10 +169,10 @@ export default function SecurityView({
                 header: 'When',
                 accessor: (row) => row.scannedAtIso ?? row.scannedAt,
                 cell: (row) => (
-                    <div>
+                    <div className="min-w-0 max-w-[9.5rem] sm:max-w-none">
                         <time
                             dateTime={row.scannedAtIso ?? undefined}
-                            className="text-[12px] whitespace-nowrap text-zinc-500 tabular-nums dark:text-zinc-400"
+                            className="block text-[12px] wrap-break-word text-zinc-500 tabular-nums sm:whitespace-nowrap dark:text-zinc-400"
                         >
                             {row.scannedAtIso
                                 ? formatDashboardDatetime(row.scannedAtIso)
@@ -183,11 +201,11 @@ export default function SecurityView({
                 header: 'Website',
                 accessor: (row) => `${row.monitorName} ${row.domainUrl}`,
                 cell: (row) => (
-                    <div>
-                        <div className="font-medium text-zinc-800 dark:text-zinc-100">
+                    <div className="min-w-0 max-w-[10rem] sm:max-w-xs">
+                        <div className="truncate font-medium text-zinc-800 dark:text-zinc-100">
                             {row.monitorName || '—'}
                         </div>
-                        <div className="mt-0.5 max-w-xs truncate text-xs text-zinc-500 dark:text-zinc-400">
+                        <div className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
                             {row.domainUrl}
                         </div>
                     </div>
@@ -199,8 +217,8 @@ export default function SecurityView({
                 accessor: (row) =>
                     `ZAP baseline (${row.status}) ${row.alertHigh} high ${row.alertMedium} medium ${row.alertLow} low ${row.alertInfo} info ${row.summary}`,
                 cell: (row) => (
-                    <div className="min-w-0 text-xs text-zinc-600 dark:text-zinc-300">
-                        <p className="font-medium text-zinc-800 dark:text-zinc-100">
+                    <div className="min-w-0 max-w-[11rem] text-xs text-zinc-600 sm:max-w-none dark:text-zinc-300">
+                        <p className="font-medium wrap-break-word text-zinc-800 dark:text-zinc-100">
                             ZAP baseline ({row.status})
                         </p>
                         <div className="mt-1.5 flex flex-col items-start gap-1">
@@ -245,38 +263,48 @@ export default function SecurityView({
         }
 
         setStarting(true);
+        setLocalError(null);
         router.post(
             '/security/scan',
             {},
             {
                 preserveScroll: true,
+                onSuccess: (page) => {
+                    const nextRun = (page.props as { activeRun?: ZapScanRunRecord | null }).activeRun ?? null;
+                    if (nextRun) {
+                        setActiveRun(nextRun);
+                    }
+                },
+                onError: () => {
+                    setLocalError('Could not start ZAP scan.');
+                },
                 onFinish: () => setStarting(false),
             },
         );
     }
 
     return (
-        <div className="w-full space-y-6">
+        <div className="w-full min-w-0 max-w-full space-y-6">
             {flash && (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm break-words text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
                     {flash}
                 </p>
             )}
             {error && (
-                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm break-words text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
                     {error}
                 </p>
             )}
 
-            <section className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+            <section className="min-w-0 rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
                         <h2 className="text-sm font-semibold tracking-tight">OWASP ZAP</h2>
-                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        <p className="mt-1 text-xs break-words text-zinc-500 dark:text-zinc-400">
                             Baseline scans run {scheduleLabel.toLowerCase()} against every active website.
                         </p>
                         {isScanning && (
-                            <p className="mt-3 text-sm font-medium text-amber-800 dark:text-amber-200">
+                            <p className="mt-3 text-sm font-medium break-words text-amber-800 dark:text-amber-200">
                                 OWASP ZAP is scanning — time elapsed: {elapsedLabel}
                                 {activeRun ? (
                                     <span className="ml-1 font-normal text-zinc-500 dark:text-zinc-400">
@@ -290,12 +318,12 @@ export default function SecurityView({
                         type="button"
                         onClick={startScan}
                         disabled={!canScan}
-                        className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                        className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
                     >
                         {isScanning ? 'Scanning…' : starting ? 'Starting…' : 'Scan all now'}
                     </button>
                 </div>
-                <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="mt-3 text-xs break-words text-zinc-500 dark:text-zinc-400">
                     {monitorCount} active website{monitorCount === 1 ? '' : 's'}
                     {zapReady ? ' · ZAP ready' : ' · Docker / ZAP not available on this server'}
                     {' · '}
@@ -303,7 +331,7 @@ export default function SecurityView({
                 </p>
             </section>
 
-            <section className="rounded-2xl border border-zinc-200/90 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/80">
+            <section className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-zinc-200/90 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/80">
                 <DataTable
                     data={scans}
                     columns={columns}
@@ -313,7 +341,7 @@ export default function SecurityView({
                     defaultPageSize={10}
                     emptyMessage="No scans yet."
                     toolbar={
-                        <div>
+                        <div className="min-w-0">
                             <h2 className="text-sm font-semibold tracking-tight text-zinc-800 dark:text-zinc-100">
                                 Scan history ({scans.length})
                             </h2>

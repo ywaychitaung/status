@@ -66,10 +66,13 @@ class SecurityController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $run = $this->zapScans->activeRunForUser((int) $user->id);
+        $userId = (int) $user->id;
+        $run = $this->zapScans->activeRunForUser($userId);
+        $lastRun = $run === null ? $this->zapScans->latestFinishedRunForUser($userId) : null;
 
         return response()->json([
             'activeRun' => $run?->toArrayForUi(),
+            'lastRun' => $lastRun?->toArrayForUi(),
             'zapReady' => $this->zap->dockerAvailable(),
         ]);
     }

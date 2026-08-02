@@ -183,14 +183,18 @@
         @apply border-border;
     }
 
-    body {
-        @apply bg-background text-foreground;
-    }
-
     html {
         font-family: var(--font-sans);
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        overflow-x: hidden;
+        max-width: 100%;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+        overflow-x: hidden;
+        max-width: 100%;
     }
 }
 

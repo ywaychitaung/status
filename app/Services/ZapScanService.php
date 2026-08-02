@@ -6,6 +6,7 @@ use App\Exceptions\StatusException;
 use App\Models\SecurityScan;
 use App\Models\User;
 use App\Models\ZapScanRun;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -74,11 +75,22 @@ class ZapScanService
     public function activeRunForUser(int $userId): ?ZapScanRun
     {
         $this->expireStaleRunsForUser($userId);
+        $this->reapDeadWorkersForUser($userId);
 
         return ZapScanRun::query()
             ->where('user_id', $userId)
             ->where('is_active', true)
             ->where('status', ZapScanRun::STATUS_RUNNING)
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /** Most recent finished run for the user (for surfacing spawn/worker errors in the UI). */
+    public function latestFinishedRunForUser(int $userId): ?ZapScanRun
+    {
+        return ZapScanRun::query()
+            ->where('user_id', $userId)
+            ->whereIn('status', [ZapScanRun::STATUS_COMPLETED, ZapScanRun::STATUS_FAILED])
             ->orderByDesc('id')
             ->first();
     }
@@ -123,9 +135,17 @@ class ZapScanService
             ],
         ]);
 
-        $this->spawnBackgroundWorker((int) $run->id, (int) $user->id, SecurityScan::SOURCE_MANUAL);
+        try {
+            $this->spawnBackgroundWorker((int) $run->id, (int) $user->id, SecurityScan::SOURCE_MANUAL);
+        } catch (Throwable $error) {
+            $run->markFailed($error->getMessage());
 
-        return $run;
+            throw $error instanceof StatusException
+                ? $error
+                : new StatusException('Could not start background ZAP worker: '.$error->getMessage());
+        }
+
+        return $run->fresh() ?? $run;
     }
 
     /** Execute scans for a persisted run (called from artisan). */
@@ -143,28 +163,46 @@ class ZapScanService
         $run->monitors_completed = 0;
         $run->status = ZapScanRun::STATUS_RUNNING;
         $run->is_active = true;
+        $run->error = null;
         $run->save();
 
         $scanned = 0;
+        $lastError = null;
 
         try {
+            if ($monitors === []) {
+                $run->markFailed('No active websites to scan for this user.');
+
+                return 0;
+            }
+
             foreach ($monitors as $monitor) {
                 try {
                     $ownerId = $userId ?? (isset($monitor['userId']) ? (int) $monitor['userId'] : null);
                     $this->scanMonitor($monitor, $ownerId, $normalizedSource);
                     $scanned++;
                 } catch (Throwable $error) {
-                    Log::error("ZAP scan failed for monitor {$monitor['id']}: ".$error->getMessage());
+                    $lastError = $error->getMessage();
+                    Log::error("ZAP scan failed for monitor {$monitor['id']}: ".$lastError);
                 }
 
                 $run->monitors_completed = $scanned;
                 $run->save();
             }
 
-            $run->markCompleted();
+            if ($scanned === 0) {
+                $run->markFailed(
+                    $lastError
+                        ?? 'ZAP worker finished with no saved results. Check Docker permissions for the PHP user and storage/logs/zap-scan.log. Ensure migrations are up to date.'
+                );
+            } else {
+                $run->markCompleted();
+            }
         } catch (Throwable $error) {
             $run->markFailed($error->getMessage());
             throw $error;
+        } finally {
+            Cache::forget($this->workerPidCacheKey($runId));
         }
 
         return $scanned;
@@ -237,10 +275,11 @@ class ZapScanService
             'status' => $result['status'],
             'summary' => $result['summary'],
             'details' => $result['details'],
-            'alert_high' => $result['alertHigh'],
-            'alert_medium' => $result['alertMedium'],
-            'alert_low' => $result['alertLow'],
-            'alert_info' => $result['alertInfo'],
+            // Encrypted casts store ciphertext as text — force string counts.
+            'alert_high' => (string) $result['alertHigh'],
+            'alert_medium' => (string) $result['alertMedium'],
+            'alert_low' => (string) $result['alertLow'],
+            'alert_info' => (string) $result['alertInfo'],
             'exit_code' => $result['exitCode'],
             'scanned_at' => now(),
         ]);
@@ -256,8 +295,13 @@ class ZapScanService
     private function spawnBackgroundWorker(int $runId, int $userId, string $source): void
     {
         $logFile = storage_path('logs/zap-scan.log');
+        if (! is_dir(dirname($logFile))) {
+            mkdir(dirname($logFile), 0775, true);
+        }
+
+        // Fully detach from php-fpm: closed stdin, nohup, backgrounded.
         $command = sprintf(
-            'nohup %s %s status:zap-scan --run=%d --source=%s >> %s 2>&1 & echo $!',
+            'nohup %s %s status:zap-scan --run=%d --source=%s >> %s 2>&1 < /dev/null & echo $!',
             escapeshellarg($this->phpCliBinary()),
             escapeshellarg(base_path('artisan')),
             $runId,
@@ -265,14 +309,65 @@ class ZapScanService
             escapeshellarg($logFile)
         );
 
-        $pid = trim((string) shell_exec($command));
+        $pidRaw = trim((string) shell_exec($command));
+        $pid = ctype_digit($pidRaw) ? (int) $pidRaw : 0;
 
         Log::info('Starting background OWASP ZAP scan.', [
             'userId' => $userId,
             'runId' => $runId,
-            'pid' => $pid !== '' ? $pid : null,
+            'pid' => $pid > 0 ? $pid : null,
             'php' => $this->phpCliBinary(),
+            'command' => $command,
         ]);
+
+        if ($pid <= 0) {
+            throw new StatusException(
+                'Could not start the background ZAP worker (no PID). Check that shell_exec is allowed and storage/logs is writable.'
+            );
+        }
+
+        Cache::put($this->workerPidCacheKey($runId), $pid, now()->addSeconds(self::STALE_AFTER_SECONDS));
+
+        // Brief settle — if the CLI dies immediately (missing php-cli, bad artisan), fail now.
+        usleep(400_000);
+        if (function_exists('posix_kill') && ! @posix_kill($pid, 0)) {
+            throw new StatusException(
+                'Background ZAP worker exited immediately. Check storage/logs/zap-scan.log (often PHP-CLI missing or Docker permission denied for the web user).'
+            );
+        }
+    }
+
+    private function reapDeadWorkersForUser(int $userId): void
+    {
+        if (! function_exists('posix_kill')) {
+            return;
+        }
+
+        $runs = ZapScanRun::query()
+            ->where('user_id', $userId)
+            ->where('is_active', true)
+            ->where('status', ZapScanRun::STATUS_RUNNING)
+            ->where('started_at', '<', now()->subSeconds(20))
+            ->get();
+
+        foreach ($runs as $run) {
+            $pid = Cache::get($this->workerPidCacheKey((int) $run->id));
+            if (! is_numeric($pid) || (int) $pid <= 0) {
+                continue;
+            }
+
+            if (! @posix_kill((int) $pid, 0)) {
+                $run->markFailed(
+                    'Background ZAP worker exited unexpectedly. Check storage/logs/zap-scan.log.'
+                );
+                Cache::forget($this->workerPidCacheKey((int) $run->id));
+            }
+        }
+    }
+
+    private function workerPidCacheKey(int $runId): string
+    {
+        return 'zap_scan_run_pid:'.$runId;
     }
 
     private function expireStaleRunsForUser(int $userId): void
@@ -284,6 +379,7 @@ class ZapScanService
             ->where('started_at', '<', now()->subSeconds(self::STALE_AFTER_SECONDS))
             ->each(function (ZapScanRun $run): void {
                 $run->markFailed('Scan timed out (no completion within 2 hours).');
+                Cache::forget($this->workerPidCacheKey((int) $run->id));
             });
     }
 
@@ -316,6 +412,6 @@ class ZapScanService
             }
         }
 
-        throw new \RuntimeException('PHP CLI binary not found. Install php-cli (e.g. php8.4-cli).');
+        throw new StatusException('PHP CLI binary not found. Install php-cli (e.g. php8.4-cli) on the server.');
     }
 }

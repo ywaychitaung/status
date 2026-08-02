@@ -56,7 +56,7 @@ export default function DashboardShell({
     children,
 }: DashboardShellProps) {
     const { app } = usePage<StatusSharedProps>().props;
-    const mobileCols = authName ? 'grid-cols-6' : 'grid-cols-3';
+    const mobileCols = authName ? 'grid-cols-4' : 'grid-cols-3';
     const [navOpen, setNavOpen] = useState(true);
 
     useEffect(() => {
@@ -82,11 +82,15 @@ export default function DashboardShell({
     };
 
     return (
-        <div id="dashboard-root" className="bg-dashboard relative min-h-screen text-zinc-900 dark:text-zinc-50" data-timezone-id={timezoneId}>
-            <div className="flex min-h-screen w-full">
+        <div
+            id="dashboard-root"
+            className="bg-dashboard relative min-h-screen max-w-[100vw] overflow-x-hidden text-zinc-900 lg:h-dvh lg:min-h-0 lg:overflow-hidden dark:text-zinc-50"
+            data-timezone-id={timezoneId}
+        >
+            <div className="flex min-h-screen w-full min-w-0 lg:h-full lg:min-h-0">
                 <aside
                     className={[
-                        'sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-zinc-200/80 bg-white/70 backdrop-blur-md transition-[width,padding,opacity] duration-200 ease-out lg:flex dark:border-zinc-800/80 dark:bg-zinc-950/60',
+                        'hidden h-dvh shrink-0 flex-col overflow-hidden border-r border-zinc-200/80 bg-white/70 backdrop-blur-md transition-[width,padding,opacity] duration-200 ease-out lg:flex dark:border-zinc-800/80 dark:bg-zinc-950/60',
                         navOpen ? 'w-56 px-4 py-6 opacity-100' : 'pointer-events-none w-0 border-transparent px-0 py-6 opacity-0',
                     ].join(' ')}
                     aria-hidden={!navOpen}
@@ -94,9 +98,9 @@ export default function DashboardShell({
                     <div className="flex h-full w-48 flex-col">
                         <Link href={app.links.home} className="flex items-center gap-2.5 px-2">
                             <BrandMark sizeClass="h-9 w-9" />
-                            <div>
-                                <p className="text-sm font-semibold tracking-tight">{app.name}</p>
-                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{app.tagline}</p>
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold tracking-tight">{app.name}</p>
+                                <p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{app.tagline}</p>
                             </div>
                         </Link>
 
@@ -116,7 +120,7 @@ export default function DashboardShell({
                     </div>
                 </aside>
 
-                <div className="flex min-w-0 flex-1 flex-col pb-20 lg:pb-0">
+                <div className="flex min-w-0 flex-1 flex-col pb-20 lg:min-h-0 lg:overflow-y-auto lg:pb-0">
                     <header className="bg-dashboard-header sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
                         <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
@@ -175,16 +179,16 @@ export default function DashboardShell({
                         </div>
                     </header>
 
-                    <main className="flex-1 space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-                        <div className="lg:hidden">
+                    <main className="min-w-0 flex-1 space-y-6 overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+                        <div className="min-w-0 lg:hidden">
                             <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
                             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>
                         </div>
-                        {children}
+                        <div className="min-w-0 max-w-full">{children}</div>
                     </main>
 
                     <footer className="mt-auto flex flex-col gap-2 border-t border-zinc-200/80 px-4 py-5 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8 dark:border-zinc-800/80 dark:text-zinc-400">
-                        <p>
+                        <p className="hidden sm:block">
                             Press{' '}
                             <kbd className="rounded border border-zinc-300 px-1.5 py-0.5 font-sans text-[10px] dark:border-zinc-700">
                                 {app.theme.shortcutKey}
@@ -213,7 +217,7 @@ export default function DashboardShell({
             </div>
 
             <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-200/90 bg-white/90 backdrop-blur-md lg:hidden dark:border-zinc-800 dark:bg-zinc-950/90">
-                <div className={`mx-auto grid w-full ${mobileCols}`}>
+                <div className={`mx-auto grid w-full max-w-full min-w-0 ${mobileCols}`}>
                     <DashboardNav active={active} authName={authName} variant="mobile" />
                 </div>
             </nav>
