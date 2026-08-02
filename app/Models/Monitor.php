@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Casts\EncryptedField;
+use App\Models\Concerns\ReadsEncryptedAttributes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -17,7 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  */
 class Monitor extends Model
 {
-    protected $table = 'monitors';
+    use ReadsEncryptedAttributes;
+    protected $table = 'websites';
 
     protected $keyType = 'string';
 
@@ -41,8 +42,8 @@ class Monitor extends Model
     protected function casts(): array
     {
         return [
-            'name' => EncryptedField::class,
-            'url' => EncryptedField::class,
+            'name' => 'encrypted',
+            'url' => 'encrypted',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
             'created_at' => 'datetime',

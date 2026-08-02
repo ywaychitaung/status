@@ -27,6 +27,11 @@ class PageMeta
             'title' => 'Admin',
             'subtitle' => 'Manage monitored websites',
         ],
+        '/alerts' => [
+            'active' => 'alerts',
+            'title' => 'Alerts',
+            'subtitle' => 'Discord and Telegram notification channels',
+        ],
         '/audits' => [
             'active' => 'audits',
             'title' => 'Audits',

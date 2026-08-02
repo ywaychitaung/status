@@ -74,10 +74,6 @@ return [
         'down_interval_minutes' => 60,
         /** Consecutive failed checks before a down alert is sent. */
         'down_consecutive' => 5,
-
-        'discord_webhook_url' => env('ALERT_DISCORD_WEBHOOK_URL'),
-        'telegram_bot_token' => env('ALERT_TELEGRAM_BOT_TOKEN'),
-        'telegram_chat_id' => env('ALERT_TELEGRAM_CHAT_ID'),
     ],
 
     /*
@@ -85,34 +81,12 @@ return [
     | Field encryption
     |--------------------------------------------------------------------------
     |
-    | 32-byte (64 hex character) key for AES-256-GCM field encryption and the
-    | HMAC-SHA256 blind indexes. Generate with: openssl rand -hex 32
-    |
-    | When absent, the key is read from (or generated into) the app_settings
-    | table, matching the legacy Deno behaviour.
+    | 32-byte (64 hex character) key for AES-256-GCM field encryption of
+    | monitors / incidents / audits. Generate with: openssl rand -hex 32
     |
     */
 
     'encryption_key' => env('ENCRYPTION_KEY'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Password hashing
-    |--------------------------------------------------------------------------
-    |
-    | Driver used when creating or updating passwords:
-    |   - argon2id (default) — custom format compatible with the Deno app
-    |   - bcrypt — PHP password_hash(PASSWORD_BCRYPT)
-    |
-    | Existing hashes of either format still verify; users are rehashed to
-    | the active driver on successful login or password change.
-    |
-    */
-
-    'password' => [
-        'hash_driver' => env('HASH_DRIVER', 'argon2id'),
-        'bcrypt_rounds' => (int) env('BCRYPT_ROUNDS', 12),
-    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -137,6 +111,7 @@ return [
         'services' => '/services',
         'incidents' => '/incidents',
         'admin' => '/admin',
+        'alerts' => '/alerts',
         'audits' => '/audits',
         'account' => '/account',
         'github' => 'https://github.com/ywaychitaung/status',
@@ -176,6 +151,7 @@ return [
     'seed_admin' => [
         'name' => 'Admin',
         'username' => 'admin',
+        'email' => 'admin@status.local',
         'password' => 'password',
     ],
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AlertChannel;
 use App\Support\DashboardDatetime;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -125,7 +126,8 @@ class AlertService
 
     private function sendDiscord(string $text): void
     {
-        $webhook = trim((string) config('status.alerts.discord_webhook_url'));
+        $channel = AlertChannel::findByName(AlertChannel::NAME_DISCORD);
+        $webhook = trim((string) ($channel?->webhook_url ?? ''));
         if ($webhook === '') {
             return;
         }
@@ -143,8 +145,9 @@ class AlertService
 
     private function sendTelegram(string $text): void
     {
-        $token = trim((string) config('status.alerts.telegram_bot_token'));
-        $chatId = trim((string) config('status.alerts.telegram_chat_id'));
+        $channel = AlertChannel::findByName(AlertChannel::NAME_TELEGRAM);
+        $token = trim((string) ($channel?->bot_token ?? ''));
+        $chatId = trim((string) ($channel?->chat_id ?? ''));
 
         if ($token === '' || $chatId === '') {
             return;

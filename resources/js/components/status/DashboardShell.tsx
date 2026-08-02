@@ -1,8 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
-import type { ReactNode } from 'react';
+import { PanelLeft, PanelLeftClose } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import DashboardNav from '@/components/status/DashboardNav';
 import type { DashboardNavId, StatusSharedProps } from '@/types/status';
+
+const NAV_COLLAPSED_KEY = 'status:nav-collapsed';
 
 interface DashboardShellProps {
     active: DashboardNavId;
@@ -53,46 +56,90 @@ export default function DashboardShell({
     children,
 }: DashboardShellProps) {
     const { app } = usePage<StatusSharedProps>().props;
-    const mobileCols = authName ? 'grid-cols-5' : 'grid-cols-3';
+    const mobileCols = authName ? 'grid-cols-6' : 'grid-cols-3';
+    const [navOpen, setNavOpen] = useState(true);
+
+    useEffect(() => {
+        try {
+            if (window.localStorage.getItem(NAV_COLLAPSED_KEY) === '1') {
+                setNavOpen(false);
+            }
+        } catch {
+            // Ignore storage access failures.
+        }
+    }, []);
+
+    const toggleNav = () => {
+        setNavOpen((current) => {
+            const next = !current;
+            try {
+                window.localStorage.setItem(NAV_COLLAPSED_KEY, next ? '0' : '1');
+            } catch {
+                // Ignore storage access failures.
+            }
+            return next;
+        });
+    };
 
     return (
         <div id="dashboard-root" className="bg-dashboard relative min-h-screen text-zinc-900 dark:text-zinc-50" data-timezone-id={timezoneId}>
-            <div className="mx-auto flex min-h-screen w-full max-w-7xl">
-                <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-zinc-200/80 bg-white/70 px-4 py-6 backdrop-blur-md lg:flex dark:border-zinc-800/80 dark:bg-zinc-950/60">
-                    <Link href={app.links.home} className="flex items-center gap-2.5 px-2">
-                        <BrandMark sizeClass="h-9 w-9" />
-                        <div>
-                            <p className="text-sm font-semibold tracking-tight">{app.name}</p>
-                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{app.tagline}</p>
+            <div className="flex min-h-screen w-full">
+                <aside
+                    className={[
+                        'sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-zinc-200/80 bg-white/70 backdrop-blur-md transition-[width,padding,opacity] duration-200 ease-out lg:flex dark:border-zinc-800/80 dark:bg-zinc-950/60',
+                        navOpen ? 'w-56 px-4 py-6 opacity-100' : 'pointer-events-none w-0 border-transparent px-0 py-6 opacity-0',
+                    ].join(' ')}
+                    aria-hidden={!navOpen}
+                >
+                    <div className="flex h-full w-48 flex-col">
+                        <Link href={app.links.home} className="flex items-center gap-2.5 px-2">
+                            <BrandMark sizeClass="h-9 w-9" />
+                            <div>
+                                <p className="text-sm font-semibold tracking-tight">{app.name}</p>
+                                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{app.tagline}</p>
+                            </div>
+                        </Link>
+
+                        <nav className="mt-8 space-y-1">
+                            <DashboardNav active={active} authName={authName} variant="side" />
+                        </nav>
+
+                        <div className="mt-auto space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/70">
+                            <p className="text-[10px] font-semibold tracking-[0.14em] text-zinc-400 uppercase">Live clock</p>
+                            <p id="current-timestamp" className="text-xs leading-relaxed text-zinc-700 tabular-nums dark:text-zinc-200">
+                                {timestamp}
+                            </p>
+                            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                                {timezoneName} ({timezoneUtcLabel})
+                            </p>
                         </div>
-                    </Link>
-
-                    <nav className="mt-8 space-y-1">
-                        <DashboardNav active={active} authName={authName} variant="side" />
-                    </nav>
-
-                    <div className="mt-auto space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/70">
-                        <p className="text-[10px] font-semibold tracking-[0.14em] text-zinc-400 uppercase">Live clock</p>
-                        <p id="current-timestamp" className="text-xs leading-relaxed text-zinc-700 tabular-nums dark:text-zinc-200">
-                            {timestamp}
-                        </p>
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                            {timezoneName} ({timezoneUtcLabel})
-                        </p>
                     </div>
                 </aside>
 
-                <div className="flex min-w-0 flex-1 flex-col border-r border-zinc-200 pb-20 lg:pb-0 dark:border-zinc-800">
+                <div className="flex min-w-0 flex-1 flex-col pb-20 lg:pb-0">
                     <header className="bg-dashboard-header sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
                         <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 lg:hidden">
-                                    <BrandMark sizeClass="h-8 w-8 shrink-0" />
-                                    <h1 className="truncate text-base font-semibold tracking-tight">{app.name}</h1>
-                                </div>
-                                <div className="hidden min-w-0 lg:block">
-                                    <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-                                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+                            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                                <button
+                                    type="button"
+                                    onClick={toggleNav}
+                                    className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white/80 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 lg:inline-flex dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+                                    aria-label={navOpen ? 'Collapse navigation' : 'Expand navigation'}
+                                    aria-expanded={navOpen}
+                                    title={navOpen ? 'Collapse navigation' : 'Expand navigation'}
+                                >
+                                    {navOpen ? <PanelLeftClose size={16} aria-hidden /> : <PanelLeft size={16} aria-hidden />}
+                                </button>
+
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 lg:hidden">
+                                        <BrandMark sizeClass="h-8 w-8 shrink-0" />
+                                        <h1 className="truncate text-base font-semibold tracking-tight">{app.name}</h1>
+                                    </div>
+                                    <div className="hidden min-w-0 lg:block">
+                                        <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
+                                        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
@@ -166,7 +213,7 @@ export default function DashboardShell({
             </div>
 
             <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-200/90 bg-white/90 backdrop-blur-md lg:hidden dark:border-zinc-800 dark:bg-zinc-950/90">
-                <div className={`mx-auto grid max-w-7xl ${mobileCols}`}>
+                <div className={`mx-auto grid w-full ${mobileCols}`}>
                     <DashboardNav active={active} authName={authName} variant="mobile" />
                 </div>
             </nav>

@@ -3,14 +3,13 @@
 An uptime monitoring dashboard built with Laravel 12, Inertia, React,
 and Tailwind CSS.
 
-It checks websites every minute, stores monitors/status/incidents in Postgres,
+It checks websites every minute, stores websites/status/incidents in Postgres,
 streams live updates to the UI over Server-Sent Events, and sends alerts to
 Discord/Telegram.
 
-> The previous Deno + Fresh + Preact implementation lives in `_legacy/` for
-> reference. Both versions share the same Postgres schema, the same AES-256-GCM
-> field encryption, the same HMAC blind indexes, and the same Argon2id password
-> format, so an existing database works unchanged.
+> Auth uses Laravel’s session guard + Sanctum. Sensitive fields use Laravel’s
+> `encrypted` cast / `Crypt` (`APP_KEY`). Login matches `username_hash` /
+> `email_hash` / `url_hash` blind indexes via `ENCRYPTION_KEY`.
 
 ## Features
 
@@ -23,7 +22,7 @@ Discord/Telegram.
 - Timezone-aware timestamps (Singapore Time by default)
 - Dark mode toggle (header button + `d` keyboard shortcut)
 - Dashboard, Services, Incidents, Admin, Audits, and Account pages
-- Alerting via Discord webhook and the Telegram bot API
+- Alerting via Discord webhook and the Telegram bot API (settings in DB / Alerts tab)
 
 ## Tech Stack
 
@@ -38,7 +37,7 @@ Discord/Telegram.
 - `pdo_pgsql` — database access
 - `pgsql` — Postgres `LISTEN` for the live stream (falls back to polling)
 - `sodium` — Argon2id password hashing in the legacy-compatible format
-- `openssl` — AES-256-GCM field encryption
+- `openssl` — Laravel Crypt / TLS
 
 ## Environment Variables
 
@@ -57,14 +56,16 @@ DB_DATABASE=status
 DB_USERNAME=
 DB_PASSWORD=
 
-# Sessions and cache use the filesystem, so no extra tables are needed.
+# Optional: set to `database` to use the Laravel `sessions` / `cache` tables.
 SESSION_DRIVER=file
 CACHE_STORE=file
 QUEUE_CONNECTION=sync
 
-# AES-256-GCM key (64 hex chars / 32 bytes). openssl rand -hex 32
+# Blind-index key for username/email/url hashes (64 hex chars). openssl rand -hex 32
 ENCRYPTION_KEY=
 
+# Optional: seeded into `alert_channels` on first migrate only.
+# Afterwards manage channels in the Alerts tab (/alerts).
 ALERT_DISCORD_WEBHOOK_URL=
 ALERT_TELEGRAM_BOT_TOKEN=
 ALERT_TELEGRAM_CHAT_ID=
@@ -72,12 +73,15 @@ ALERT_TELEGRAM_CHAT_ID=
 
 Notes:
 
-- `ENCRYPTION_KEY` must be the **same key** the legacy app used, or existing
-  encrypted rows cannot be read. When it is absent, the key is read from (or
-  generated into) the `app_settings` table, matching the legacy behaviour.
-- Admin `name` + `username` are AES-256-GCM encrypted; `username_hash` is an
-  HMAC-SHA256 blind index used for lookups; passwords use Argon2id.
-- Leave the Discord/Telegram fields empty to disable that channel.
+- Field values use Laravel Crypt (`APP_KEY` + `encrypted` casts). `ENCRYPTION_KEY`
+  is required only for blind indexes (`username_hash`, `email_hash`, `url_hash`).
+- Passwords use Laravel Hash (`HASH_DRIVER`, default `argon2id`). Users include
+  Sanctum `personal_access_tokens` plus Laravel defaults (`sessions`,
+  `password_reset_tokens`, `cache`, `jobs`, `failed_jobs`, …). Login accepts
+  username or email.
+- Discord / Telegram credentials live in the `alert_channels` table (one row per
+  channel: `name` + shared encrypted columns) and are edited under **Alerts**.
+  Env vars are only used to seed that table.
 
 ## Install
 
@@ -167,30 +171,35 @@ A check counts as "up" when the response status is 200–399.
 
 ## Getting Discord Webhook + Telegram Chat ID
 
+Configure these under **Alerts** (`/alerts`) after signing in. On first migrate,
+values from `ALERT_*` env vars (if set) are copied into `alert_channels`
+(one row for Discord, one for Telegram).
+
 ### Discord Webhook
 
 1. Open your Discord server.
 2. Go to **Server Settings** -> **Integrations** -> **Webhooks**.
 3. Create a webhook and choose a channel.
-4. Copy the webhook URL into `ALERT_DISCORD_WEBHOOK_URL`.
+4. Paste the webhook URL into the Alerts form (Discord webhook URL).
 
 ### Telegram Bot Token
 
 1. Open [@BotFather](https://t.me/BotFather).
 2. Run `/newbot` and complete setup.
-3. Copy the bot token into `ALERT_TELEGRAM_BOT_TOKEN`.
+3. Paste the bot token into the Alerts form.
 
 ### Telegram Chat ID
 
 1. Send a message to your bot (or add the bot to a group and send a message).
 2. Open `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`.
 3. Find `chat.id` in the JSON response.
-4. Put that value into `ALERT_TELEGRAM_CHAT_ID`.
+4. Paste that value into the Alerts form (Telegram chat ID).
 
 Notes:
 
 - Private chat IDs are usually positive numbers.
 - Group/supergroup chat IDs are often negative (for example `-100...`).
+- Leave a channel field empty to disable that channel.
 
 ## Routes
 
@@ -203,6 +212,7 @@ Notes:
 | `POST /login`     | guest  | Username + password sign-in                   |
 | `POST /logout`    | auth   | Sign out                                      |
 | `GET /admin`      | auth   | Manage monitored websites                     |
+| `GET /alerts`     | auth   | Discord / Telegram alert channel settings     |
 | `GET /audits`     | auth   | Login, account, and website change history    |
 | `GET /account`    | auth   | Profile and password                          |
 

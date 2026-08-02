@@ -12,14 +12,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
-/**
- * Username + password login backed by the HMAC blind index and the legacy
- * Argon2id hashes, on top of Laravel's session guard
- * (port of _legacy/routes/api/auth.ts).
- */
+/** Username/email + password login (encrypted identity + session guard). */
 class AuthController extends Controller
 {
-    private const GENERIC_ERROR = 'Incorrect username or password.';
+    private const GENERIC_ERROR = 'Incorrect username/email or password.';
 
     public function __construct(
         private readonly UserService $users,
@@ -30,6 +26,7 @@ class AuthController extends Controller
     {
         $username = $request->string('username')->toString();
         $password = $request->string('password')->toString();
+        $remember = $request->boolean('remember');
         $attempted = trim($username) !== '' ? trim($username) : null;
 
         try {
@@ -46,13 +43,15 @@ class AuthController extends Controller
                 return $this->failed($request, $error, 503);
             }
 
-            $result = $this->users->attemptLogin($username, $password);
+            $result = $this->users->authenticate($username, $password);
 
-            if ($result['ok'] !== true) {
+            if (isset($result['ok']) && $result['ok'] === false) {
                 $this->auditFailure($request, $attempted, $result['message'], $result['reason']);
 
                 return $this->failed($request, self::GENERIC_ERROR, 401);
             }
+
+            Auth::login($result['user'], $remember);
         } catch (ValidationException $error) {
             throw $error;
         } catch (Throwable $error) {
@@ -61,11 +60,10 @@ class AuthController extends Controller
             return $this->failed($request, 'Login failed.', 500);
         }
 
-        /** @var User $user */
-        $user = $result['user'];
-
-        Auth::login($user);
         $request->session()->regenerate();
+
+        /** @var User $user */
+        $user = $request->user();
 
         $this->audits->writeSafe([
             'action' => 'auth.login',

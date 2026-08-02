@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Casts\EncryptedField;
+use App\Models\Concerns\ReadsEncryptedAttributes;
 use App\Support\DashboardDatetime;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  */
 class Incident extends Model
 {
+    use ReadsEncryptedAttributes;
     protected $table = 'incidents';
 
     protected $keyType = 'string';
@@ -48,9 +49,9 @@ class Incident extends Model
     protected function casts(): array
     {
         return [
-            'name' => EncryptedField::class,
-            'url' => EncryptedField::class,
-            'error' => EncryptedField::class,
+            'name' => 'encrypted',
+            'url' => 'encrypted',
+            'error' => 'encrypted',
             'started_at' => 'datetime',
             'resolved_at' => 'datetime',
             'status_code' => 'integer',

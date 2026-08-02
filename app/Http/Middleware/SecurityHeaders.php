@@ -22,13 +22,14 @@ class SecurityHeaders
     {
         $headers = $response->headers;
         $isHtml = str_contains((string) $headers->get('content-type'), 'text/html');
+        $viteDev = self::isViteDev();
 
-        if (! app()->environment('local')) {
+        if (! $viteDev && ! app()->environment('local')) {
             $headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
 
         if ($isHtml) {
-            $headers->set('Content-Security-Policy', implode('; ', self::contentSecurityPolicy()));
+            $headers->set('Content-Security-Policy', implode('; ', self::contentSecurityPolicy($viteDev)));
         }
 
         $headers->set('X-Frame-Options', 'DENY');
@@ -38,15 +39,32 @@ class SecurityHeaders
             'Permissions-Policy',
             'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()'
         );
-        $headers->set('Cross-Origin-Opener-Policy', 'same-origin');
-        $headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+        // CORP/COOP break Vite HMR modules loaded from :5173 during local Inertia navigations.
+        if (! $viteDev) {
+            $headers->set('Cross-Origin-Opener-Policy', 'same-origin');
+            $headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+        }
         $headers->set('X-DNS-Prefetch-Control', 'off');
 
         return $response;
     }
 
+    /**
+     * True when the Vite dev server is running (public/hot) or the app is local.
+     * Checking the hot file matters because a long-lived `artisan serve` process
+     * may still have APP_ENV=production in memory after .env was edited.
+     */
+    private static function isViteDev(): bool
+    {
+        if (app()->environment('local')) {
+            return true;
+        }
+
+        return is_file(public_path('hot'));
+    }
+
     /** @return list<string> */
-    private static function contentSecurityPolicy(): array
+    private static function contentSecurityPolicy(bool $viteDev): array
     {
         $scriptSrc = ["'self'", "'unsafe-inline'"];
         $connectSrc = ["'self'", 'ws:', 'wss:'];
@@ -54,7 +72,7 @@ class SecurityHeaders
         $fontSrc = ["'self'"];
 
         // Vite HMR — use IPv4 only; browsers reject http://[::1]:5173 in CSP lists.
-        if (app()->environment('local')) {
+        if ($viteDev) {
             $viteOrigins = [
                 'http://localhost:5173',
                 'http://127.0.0.1:5173',
@@ -82,7 +100,7 @@ class SecurityHeaders
             "object-src 'none'",
         ];
 
-        if (! app()->environment('local')) {
+        if (! $viteDev) {
             $directives[] = 'upgrade-insecure-requests';
         }
 

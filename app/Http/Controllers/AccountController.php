@@ -46,35 +46,47 @@ class AccountController extends Controller
             $updated = $this->users->updateAccount(
                 $user,
                 $request->string('name')->toString(),
-                $request->string('username')->toString()
+                $request->string('username')->toString(),
+                $request->string('email')->toString(),
             )->toAuthUser();
         } catch (Throwable $error) {
             return $this->failure($this->message($error));
         }
 
         $changes = [];
-        if ($updated['name'] !== $before['name']) {
-            $changes[] = 'name';
-        }
-        if ($updated['username'] !== $before['username']) {
-            $changes[] = 'username';
+        foreach (['name', 'username', 'email'] as $field) {
+            if ($updated[$field] !== $before[$field]) {
+                $changes[$field] = [
+                    'previous' => $before[$field],
+                    'new' => $updated[$field],
+                ];
+            }
         }
 
-        $this->audits->writeSafe([
-            'action' => 'account.profile_update',
-            'actor' => $updated,
-            'entityType' => 'user',
-            'entityId' => (string) $updated['id'],
-            'summary' => $changes === []
-                ? "{$updated['name']} saved profile (no fields changed)"
-                : "{$before['name']} updated ".implode(' and ', $changes),
-            'metadata' => [
-                'before' => ['name' => $before['name'], 'username' => $before['username']],
-                'after' => ['name' => $updated['name'], 'username' => $updated['username']],
-                'changed' => $changes,
-            ],
-            'request' => $request,
-        ]);
+        if ($changes !== []) {
+            foreach ($changes as $field => $change) {
+                $this->audits->writeSafe([
+                    'action' => 'account.profile_update',
+                    'actor' => $updated,
+                    'entityType' => 'user',
+                    'entityId' => (string) $updated['id'],
+                    'summary' => "{$before['name']} updated {$field}",
+                    'metadata' => [
+                        'changes' => [
+                            $field => $change,
+                        ],
+                        'before' => [
+                            $field => $change['previous'],
+                        ],
+                        'after' => [
+                            $field => $change['new'],
+                        ],
+                        'changed' => [$field],
+                    ],
+                    'request' => $request,
+                ]);
+            }
+        }
 
         return $this->success('Profile updated.');
     }
@@ -102,6 +114,10 @@ class AccountController extends Controller
             'entityType' => 'user',
             'entityId' => (string) $actor['id'],
             'summary' => "{$actor['name']} changed password",
+            // Never store previous/new password values.
+            'metadata' => [
+                'changed' => ['password'],
+            ],
             'request' => $request,
         ]);
 

@@ -1,8 +1,8 @@
 /** Shared types for the status dashboard (port of _legacy/lib/pageTypes.ts). */
 
-export type DashboardNavId = 'dashboard' | 'services' | 'incidents' | 'admin' | 'audits' | 'account';
+export type DashboardNavId = 'dashboard' | 'services' | 'incidents' | 'admin' | 'alerts' | 'audits' | 'account';
 
-export type PagePath = '/' | '/services' | '/incidents' | '/admin' | '/audits' | '/account';
+export type PagePath = '/' | '/services' | '/incidents' | '/admin' | '/alerts' | '/audits' | '/account';
 
 export interface MonitorTarget {
     id: string;
@@ -56,9 +56,10 @@ export type AuditAction =
     | 'monitor.create'
     | 'monitor.update'
     | 'monitor.delete'
-    | 'monitor.reactivate';
+    | 'monitor.reactivate'
+    | 'alerts.update';
 
-export type AuditEntityType = 'user' | 'monitor' | 'session';
+export type AuditEntityType = 'user' | 'monitor' | 'session' | 'alert_settings' | 'alert_channel';
 
 export interface AuditRecord {
     id: string;
@@ -96,6 +97,7 @@ export interface AuthUser {
     id: number;
     username: string;
     name: string;
+    email: string;
 }
 
 export interface StatusLinks {
@@ -103,6 +105,7 @@ export interface StatusLinks {
     services: string;
     incidents: string;
     admin: string;
+    alerts: string;
     audits: string;
     account: string;
     github: string;
@@ -163,6 +166,16 @@ export interface AuditsPageProps extends StatusPageProps {
 
 export interface AccountPageProps extends StatusPageProps {
     user: AuthUser;
+    flash: string | null;
+    error: string | null;
+}
+
+export interface AlertsPageProps extends StatusPageProps {
+    settings: {
+        discordWebhookUrl: string;
+        telegramBotToken: string;
+        telegramChatId: string;
+    };
     flash: string | null;
     error: string | null;
 }

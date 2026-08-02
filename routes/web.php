@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AlertsController;
 use App\Http\Controllers\AuditsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
@@ -49,6 +50,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('admin.monitors.destroy');
     Route::post('/admin/monitors/{monitor}/reactivate', [AdminController::class, 'reactivate'])
         ->name('admin.monitors.reactivate');
+
+    Route::get('/alerts', [AlertsController::class, 'index'])->name('alerts');
+    Route::put('/alerts', [AlertsController::class, 'update'])->name('alerts.update');
 
     Route::get('/audits', [AuditsController::class, 'index'])->name('audits');
 

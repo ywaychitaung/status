@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, ClipboardList, LayoutDashboard, Server, Settings, UserRound } from 'lucide-react';
+import { Activity, Bell, ClipboardList, LayoutDashboard, Server, Settings, UserRound } from 'lucide-react';
 
 import type { DashboardNavId, StatusLinks, StatusSharedProps } from '@/types/status';
 
@@ -40,6 +40,12 @@ function authNav(links: StatusLinks): NavItem[] {
             href: links.admin,
             label: 'Admin',
             icon: Settings,
+        },
+        {
+            id: 'alerts',
+            href: links.alerts,
+            label: 'Alerts',
+            icon: Bell,
         },
         {
             id: 'audits',

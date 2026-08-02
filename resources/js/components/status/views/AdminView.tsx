@@ -17,7 +17,7 @@ export default function AdminView({ monitors, inactiveMonitors, flash, error, ed
     const token = csrfToken();
 
     return (
-        <div className="mx-auto w-full max-w-3xl space-y-6">
+        <div className="w-full space-y-6">
             {flash && (
                 <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
                     {flash}

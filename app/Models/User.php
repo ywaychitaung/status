@@ -2,37 +2,41 @@
 
 namespace App\Models;
 
-use App\Casts\EncryptedField;
+use App\Models\Concerns\ReadsEncryptedAttributes;
 use App\Services\FieldCrypto;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 /**
- * Matches the schema written by the legacy Deno app: no email column, the
- * username and name are AES-256-GCM ciphertext, and username_hash is an HMAC
- * blind index used for lookups.
+ * Authenticatable user with Laravel-encrypted identity fields and HMAC
+ * blind indexes for username/email login lookups. Sanctum PATs via HasApiTokens.
  *
  * @property int $id
- * @property string $username plaintext (decrypted)
+ * @property string $name
+ * @property string $username
  * @property string $username_hash
- * @property string $password argon2id$… or bcrypt ($2y$…) hash
- * @property string $name plaintext (decrypted)
+ * @property string $email
+ * @property string $email_hash
+ * @property string $password
+ * @property string|null $remember_token
+ * @property \Illuminate\Support\Carbon|null $email_verified_at
  */
 class User extends Authenticatable
 {
-    protected $table = 'users';
+    use HasApiTokens, Notifiable, ReadsEncryptedAttributes;
 
     /**
-     * Passwords are hashed by PasswordHasher (argon2id or bcrypt via
-     * HASH_DRIVER), so Laravel's "hashed" cast is not used.
-     *
      * @var list<string>
      */
     protected $fillable = [
+        'name',
         'username',
         'username_hash',
+        'email',
+        'email_hash',
+        'email_verified_at',
         'password',
-        'name',
     ];
 
     /**
@@ -40,7 +44,9 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'remember_token',
         'username_hash',
+        'email_hash',
     ];
 
     /**
@@ -49,49 +55,54 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'username' => EncryptedField::class,
-            'name' => EncryptedField::class,
-            'created_at' => 'datetime',
-            'updated_at' => 'datetime',
+            'name' => 'encrypted',
+            'username' => 'encrypted',
+            'email' => 'encrypted',
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
         ];
     }
 
-    /** The legacy schema has no remember_token column. */
-    public function getRememberTokenName(): ?string
+    public static function hashIdentity(string $value): string
     {
-        return null;
+        return app(FieldCrypto::class)->blindIndex(strtolower(trim($value)));
     }
 
-    /** Set the username together with its blind index. */
+    /** Find by username or email (blind-index match). */
+    public static function findByLogin(string $identifier): ?self
+    {
+        $hash = static::hashIdentity($identifier);
+
+        return static::query()
+            ->where(function ($query) use ($hash): void {
+                $query->where('username_hash', $hash)
+                    ->orWhere('email_hash', $hash);
+            })
+            ->first();
+    }
+
     public function setUsernameWithIndex(string $username): void
     {
         $normalized = strtolower(trim($username));
-
         $this->username = $normalized;
-        $this->username_hash = app(FieldCrypto::class)->blindIndex($normalized);
+        $this->username_hash = static::hashIdentity($normalized);
     }
 
-    /** @param  Builder<User>  $query */
-    public function scopeWhereUsername(Builder $query, string $username): Builder
+    public function setEmailWithIndex(string $email): void
     {
-        return $query->where(
-            'username_hash',
-            app(FieldCrypto::class)->blindIndex(strtolower(trim($username)))
-        );
+        $normalized = strtolower(trim($email));
+        $this->email = $normalized;
+        $this->email_hash = static::hashIdentity($normalized);
     }
 
-    public static function findByUsername(string $username): ?self
-    {
-        return static::query()->whereUsername($username)->first();
-    }
-
-    /** Shape shared with the front end (AuthUser in _legacy/lib/pageTypes.ts). */
+    /** Shape shared with the front end. */
     public function toAuthUser(): array
     {
         return [
             'id' => (int) $this->id,
             'username' => (string) $this->username,
             'name' => (string) $this->name,
+            'email' => (string) $this->email,
         ];
     }
 }

@@ -14,6 +14,7 @@ class DashboardDataService
         private readonly CheckService $checks,
         private readonly MonitorService $monitors,
         private readonly AuditService $audits,
+        private readonly AlertSettingsService $alertSettings,
     ) {}
 
     /**
@@ -93,6 +94,22 @@ class DashboardDataService
             'frame' => $this->frame(),
             'user' => $this->authUser($request),
             'audits' => $this->audits->list(100),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function alertsPage(Request $request): array
+    {
+        $path = '/alerts';
+
+        return [
+            'path' => $path,
+            'meta' => PageMeta::forPath($path),
+            'frame' => $this->frame(),
+            'user' => $this->authUser($request),
+            'settings' => $this->alertSettings->toForm(),
+            'flash' => $this->flash($request, 'flash'),
+            'error' => $this->flash($request, 'error'),
         ];
     }
 

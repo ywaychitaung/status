@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Casts\EncryptedField;
+use App\Models\Concerns\ReadsEncryptedAttributes;
 use App\Support\DashboardDatetime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -10,11 +10,11 @@ use Illuminate\Support\Carbon;
 /**
  * @property string $id ULID
  * @property Carbon $created_at
- * @property string $action
+ * @property string $action plaintext (decrypted)
  * @property int|null $actor_user_id
  * @property string|null $actor_username plaintext (decrypted)
  * @property string|null $actor_name plaintext (decrypted)
- * @property string|null $entity_type
+ * @property string|null $entity_type plaintext (decrypted)
  * @property string|null $entity_id
  * @property string $summary plaintext (decrypted)
  * @property string|null $metadata plaintext JSON (decrypted)
@@ -23,12 +23,14 @@ use Illuminate\Support\Carbon;
  */
 class Audit extends Model
 {
+    use ReadsEncryptedAttributes;
     public const ACTIONS = [
         'auth.login',
         'auth.login_failed',
         'auth.logout',
         'account.profile_update',
         'account.password_change',
+        'alerts.update',
         'monitor.create',
         'monitor.update',
         'monitor.delete',
@@ -67,12 +69,14 @@ class Audit extends Model
     protected function casts(): array
     {
         return [
-            'actor_username' => EncryptedField::class,
-            'actor_name' => EncryptedField::class,
-            'summary' => EncryptedField::class,
-            'metadata' => EncryptedField::class,
-            'ip' => EncryptedField::class,
-            'user_agent' => EncryptedField::class,
+            'action' => 'encrypted',
+            'actor_username' => 'encrypted',
+            'actor_name' => 'encrypted',
+            'entity_type' => 'encrypted',
+            'summary' => 'encrypted',
+            'metadata' => 'encrypted',
+            'ip' => 'encrypted',
+            'user_agent' => 'encrypted',
             'created_at' => 'datetime',
         ];
     }
@@ -112,6 +116,7 @@ class Audit extends Model
             'auth.logout' => 'Logged out',
             'account.profile_update' => 'Profile updated',
             'account.password_change' => 'Password changed',
+            'alerts.update' => 'Alert settings updated',
             'monitor.create' => 'Website created',
             'monitor.update' => 'Website updated',
             'monitor.delete' => 'Website deleted',

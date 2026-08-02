@@ -7,6 +7,13 @@ interface LiveClockProps {
     timezoneId: string;
 }
 
+export const PAUSE_STREAM_EVENT = 'status:pause-stream';
+
+/** Close the live SSE feed so single-worker PHP can handle other requests. */
+export function pauseStatusStream(): void {
+    window.dispatchEvent(new Event(PAUSE_STREAM_EVENT));
+}
+
 /** Shared live clock + SSE refresh for all dashboard pages. */
 export default function LiveClock({ timezoneId }: LiveClockProps) {
     useEffect(() => {
@@ -18,7 +25,7 @@ export default function LiveClock({ timezoneId }: LiveClockProps) {
         updateTimestamp();
         const timestampTimer = setInterval(updateTimestamp, 1000);
 
-        const source = new EventSource('/api/stream');
+        let source: EventSource | null = new EventSource('/api/stream');
         let initialSignature: string | null = null;
         let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -37,11 +44,19 @@ export default function LiveClock({ timezoneId }: LiveClockProps) {
 
         source.addEventListener('snapshot', onSnapshot as EventListener);
 
+        const pause = () => {
+            if (source === null) return;
+            source.removeEventListener('snapshot', onSnapshot as EventListener);
+            source.close();
+            source = null;
+        };
+        window.addEventListener(PAUSE_STREAM_EVENT, pause);
+
         return () => {
             clearInterval(timestampTimer);
             if (reloadTimer !== null) clearTimeout(reloadTimer);
-            source.removeEventListener('snapshot', onSnapshot as EventListener);
-            source.close();
+            window.removeEventListener(PAUSE_STREAM_EVENT, pause);
+            pause();
         };
     }, [timezoneId]);
 

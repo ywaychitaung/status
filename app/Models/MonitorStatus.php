@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Casts\EncryptedField;
+use App\Models\Concerns\ReadsEncryptedAttributes;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -19,7 +19,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class MonitorStatus extends Model
 {
-    protected $table = 'monitor_statuses';
+    use ReadsEncryptedAttributes;
+    protected $table = 'website_statuses';
 
     protected $primaryKey = 'monitor_id';
 
@@ -49,9 +50,9 @@ class MonitorStatus extends Model
     protected function casts(): array
     {
         return [
-            'name' => EncryptedField::class,
-            'url' => EncryptedField::class,
-            'error' => EncryptedField::class,
+            'name' => 'encrypted',
+            'url' => 'encrypted',
+            'error' => 'encrypted',
             'up' => 'boolean',
             'status_code' => 'integer',
             'response_time_ms' => 'integer',

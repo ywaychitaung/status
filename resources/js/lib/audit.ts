@@ -13,6 +13,8 @@ export function formatAuditAction(action: AuditAction): string {
             return 'Profile updated';
         case 'account.password_change':
             return 'Password changed';
+        case 'alerts.update':
+            return 'Alert settings updated';
         case 'monitor.create':
             return 'Website created';
         case 'monitor.update':

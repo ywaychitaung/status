@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\AppSummary;
 use App\Models\Incident;
+use App\Models\MonitorStatus;
 use App\Support\DashboardDatetime;
 use App\Support\MonitorUrl;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +18,6 @@ use Throwable;
 class CheckService
 {
     public function __construct(
-        private readonly FieldCrypto $crypto,
         private readonly MonitorService $monitors,
         private readonly AlertService $alerts,
         private readonly StatusEvents $events,
@@ -91,9 +92,8 @@ class CheckService
     {
         $monitors = $this->monitors->listActive();
 
-        $rows = DB::table('monitor_statuses')
-            ->select(['monitor_id', 'up', 'checked_at', 'status_code', 'response_time_ms', 'error'])
-            ->get()
+        $rows = MonitorStatus::query()
+            ->get(['monitor_id', 'up', 'checked_at', 'status_code', 'response_time_ms', 'error'])
             ->keyBy('monitor_id');
 
         $statuses = [];
@@ -118,14 +118,13 @@ class CheckService
 
             $statuses[] = [
                 'id' => $monitor['id'],
-                // Prefer the canonical monitor fields (already decrypted).
                 'name' => $monitor['name'],
                 'url' => $monitor['url'],
                 'up' => (bool) $row->up,
                 'checkedAt' => DashboardDatetime::toIso($row->checked_at) ?? '',
                 'statusCode' => $row->status_code === null ? null : (int) $row->status_code,
                 'responseTimeMs' => $row->response_time_ms === null ? null : (int) $row->response_time_ms,
-                'error' => $this->crypto->decryptNullable($row->error),
+                'error' => $row->error,
             ];
         }
 
@@ -193,21 +192,28 @@ class CheckService
             ->all();
     }
 
-    /** Guarantee a usable plaintext URL even if a caller hands us ciphertext. */
+    /** Guarantee a usable plaintext URL (Eloquent list already decrypts). */
     private function resolveMonitorUrl(string $url): string
     {
-        $plain = $this->crypto->isEncrypted($url) ? $this->crypto->decryptMaybe($url) : $url;
-
-        if ($this->crypto->isEncrypted($plain) || ! MonitorUrl::isHttpUrl($plain)) {
-            throw new RuntimeException('Monitor URL is not usable: '.substr($plain, 0, 48));
+        if (MonitorUrl::isHttpUrl($url)) {
+            return $url;
         }
 
-        return $plain;
+        try {
+            $plain = Crypt::decryptString($url);
+            if (MonitorUrl::isHttpUrl($plain)) {
+                return $plain;
+            }
+        } catch (Throwable) {
+            // Fall through.
+        }
+
+        throw new RuntimeException('Monitor URL is not usable: '.substr($url, 0, 48));
     }
 
     private function previousUp(string $monitorId): ?bool
     {
-        $row = DB::table('monitor_statuses')
+        $row = DB::table('website_statuses')
             ->where('monitor_id', $monitorId)
             ->first(['up']);
 
@@ -224,33 +230,28 @@ class CheckService
         string $now,
         array $result
     ): void {
-        $errorCipher = $this->crypto->encryptNullable($result['error']);
-
-        $openId = DB::table('incidents')
+        $open = Incident::query()
             ->where('monitor_id', $monitorId)
             ->whereNull('resolved_at')
-            ->value('id');
+            ->first();
 
-        if ($openId !== null) {
-            DB::table('incidents')
-                ->where('id', $openId)
-                ->update([
-                    'status_code' => $result['statusCode'],
-                    'error' => $errorCipher,
-                ]);
+        if ($open !== null) {
+            $open->status_code = $result['statusCode'];
+            $open->error = $result['error'];
+            $open->save();
 
             return;
         }
 
-        DB::table('incidents')->insert([
+        Incident::query()->create([
             'id' => "{$monitorId}-{$now}",
             'monitor_id' => $monitorId,
-            'name' => $this->crypto->encrypt($name),
-            'url' => $this->crypto->encrypt($url),
+            'name' => $name,
+            'url' => $url,
             'started_at' => $now,
             'resolved_at' => null,
             'status_code' => $result['statusCode'],
-            'error' => $errorCipher,
+            'error' => $result['error'],
         ]);
 
         $this->trimIncidentHistory();
@@ -286,16 +287,17 @@ class CheckService
         string $now,
         array $result
     ): void {
-        DB::table('monitor_statuses')->upsert(
+        // upsert() bypasses Eloquent casts — encrypt explicitly.
+        DB::table('website_statuses')->upsert(
             [[
                 'monitor_id' => $monitorId,
-                'name' => $this->crypto->encrypt($name),
-                'url' => $this->crypto->encrypt($url),
+                'name' => Crypt::encryptString($name),
+                'url' => Crypt::encryptString($url),
                 'up' => $result['up'],
                 'checked_at' => $now,
                 'status_code' => $result['statusCode'],
                 'response_time_ms' => $result['responseTimeMs'],
-                'error' => $this->crypto->encryptNullable($result['error']),
+                'error' => $result['error'] === null ? null : Crypt::encryptString($result['error']),
             ]],
             ['monitor_id'],
             ['name', 'url', 'up', 'checked_at', 'status_code', 'response_time_ms', 'error']

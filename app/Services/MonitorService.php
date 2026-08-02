@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\StatusException;
 use App\Models\Monitor;
 use App\Support\MonitorUrl;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Throwable;
@@ -77,10 +78,10 @@ class MonitorService
             $target = DB::transaction(function () use ($id, $name, $normalizedUrl): array {
                 $sortOrder = $this->nextSortOrder();
 
-                DB::table('monitors')->insert([
+                Monitor::query()->create([
                     'id' => $id,
-                    'name' => $this->crypto->encrypt($name),
-                    'url' => $this->crypto->encrypt($normalizedUrl),
+                    'name' => $name,
+                    'url' => $normalizedUrl,
                     'url_hash' => $this->crypto->blindIndex($normalizedUrl),
                     'sort_order' => $sortOrder,
                     'is_active' => true,
@@ -114,16 +115,17 @@ class MonitorService
         $normalizedUrl = $this->normalizeUrl($url);
         $order = $this->parseSortOrder($sortOrder);
 
+        // Query-builder updates bypass Eloquent casts — encrypt explicitly.
         $payload = [
-            'name' => $this->crypto->encrypt($name),
-            'url' => $this->crypto->encrypt($normalizedUrl),
+            'name' => Crypt::encryptString($name),
+            'url' => Crypt::encryptString($normalizedUrl),
             'url_hash' => $this->crypto->blindIndex($normalizedUrl),
             'updated_at' => now(),
         ];
 
         try {
             DB::transaction(function () use ($id, $order, $payload): void {
-                $current = DB::table('monitors')
+                $current = DB::table('websites')
                     ->where('id', $id)
                     ->where('is_active', true)
                     ->lockForUpdate()
@@ -136,7 +138,7 @@ class MonitorService
                 $oldOrder = (int) $current->sort_order;
 
                 if ($oldOrder === $order) {
-                    DB::table('monitors')
+                    DB::table('websites')
                         ->where('id', $id)
                         ->where('is_active', true)
                         ->update($payload);
@@ -144,7 +146,7 @@ class MonitorService
                     return;
                 }
 
-                $occupant = DB::table('monitors')
+                $occupant = DB::table('websites')
                     ->where('sort_order', $order)
                     ->where('is_active', true)
                     ->where('id', '<>', $id)
@@ -156,16 +158,16 @@ class MonitorService
                     // index on active sort_order stays satisfied mid-swap.
                     $parkOrder = -abs($oldOrder === 0 ? 1 : $oldOrder);
 
-                    DB::table('monitors')
+                    DB::table('websites')
                         ->where('id', $id)
                         ->update(['sort_order' => $parkOrder, 'updated_at' => now()]);
 
-                    DB::table('monitors')
+                    DB::table('websites')
                         ->where('id', $occupant->id)
                         ->update(['sort_order' => $oldOrder, 'updated_at' => now()]);
                 }
 
-                DB::table('monitors')
+                DB::table('websites')
                     ->where('id', $id)
                     ->update($payload + ['sort_order' => $order]);
             });
@@ -189,7 +191,7 @@ class MonitorService
     /** Soft-delete: mark inactive instead of removing the row. */
     public function delete(string $id): bool
     {
-        $affected = DB::table('monitors')
+        $affected = DB::table('websites')
             ->where('id', $id)
             ->where('is_active', true)
             ->update(['is_active' => false, 'updated_at' => now()]);
@@ -214,7 +216,7 @@ class MonitorService
 
         try {
             $sortOrder = DB::transaction(function () use ($id, $clashMessage): int {
-                $current = DB::table('monitors')
+                $current = DB::table('websites')
                     ->where('id', $id)
                     ->where('is_active', false)
                     ->lockForUpdate()
@@ -224,7 +226,7 @@ class MonitorService
                     throw new StatusException('Deleted website not found');
                 }
 
-                $clash = DB::table('monitors')
+                $clash = DB::table('websites')
                     ->where('url_hash', $current->url_hash)
                     ->where('is_active', true)
                     ->where('id', '<>', $id)
@@ -236,7 +238,7 @@ class MonitorService
 
                 $sortOrder = $this->nextSortOrder();
 
-                DB::table('monitors')
+                DB::table('websites')
                     ->where('id', $id)
                     ->update([
                         'is_active' => true,
@@ -267,7 +269,7 @@ class MonitorService
 
     private function nextSortOrder(): int
     {
-        $max = DB::table('monitors')->where('is_active', true)->max('sort_order');
+        $max = DB::table('websites')->where('is_active', true)->max('sort_order');
 
         return (int) $max + 1;
     }
@@ -295,9 +297,9 @@ class MonitorService
         $raw = $error->getMessage();
 
         foreach ([
-            'monitors_url_hash_active_uidx',
-            'monitors_url_active_uidx',
-            'monitors_url_key',
+            'websites_url_hash_active_uidx',
+            'websites_url_active_uidx',
+            'websites_url_key',
             'duplicate key',
         ] as $needle) {
             if (str_contains($raw, $needle)) {

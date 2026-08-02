@@ -5,16 +5,12 @@ namespace App\Services;
 use App\Exceptions\StatusException;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Hash;
 use Throwable;
 
-/** Port of the user/credential half of _legacy/lib/adminAuth.ts. */
+/** User credentials + account updates (encrypted identity + Hash passwords). */
 class UserService
 {
-    public function __construct(
-        private readonly FieldCrypto $crypto,
-        private readonly PasswordHasher $passwords,
-    ) {}
-
     public function count(): int
     {
         return User::query()->count();
@@ -25,10 +21,11 @@ class UserService
         return $this->count() > 0;
     }
 
-    public function create(string $name, string $username, string $password): User
+    public function create(string $name, string $username, string $password, ?string $email = null): User
     {
         $name = trim($name);
         $username = strtolower(trim($username));
+        $email = strtolower(trim((string) ($email ?? "{$username}@status.local")));
 
         if ($name === '') {
             throw new StatusException('Name is required');
@@ -36,19 +33,25 @@ class UserService
         if ($username === '') {
             throw new StatusException('Username is required');
         }
+        if (! $this->isValidEmail($email)) {
+            throw new StatusException('A valid email is required');
+        }
         if (strlen($password) < 8) {
             throw new StatusException('Password must be at least 8 characters');
         }
 
         try {
             return User::query()->create([
-                'username' => $username,
-                'username_hash' => $this->crypto->blindIndex($username),
-                'password' => $this->passwords->hash($password),
                 'name' => $name,
+                'username' => $username,
+                'username_hash' => User::hashIdentity($username),
+                'email' => $email,
+                'email_hash' => User::hashIdentity($email),
+                'email_verified_at' => now(),
+                'password' => $password,
             ]);
         } catch (QueryException $error) {
-            throw $this->translateUsernameConflict($error);
+            throw $this->translateUniqueConflict($error);
         }
     }
 
@@ -61,15 +64,21 @@ class UserService
 
         $seed = config('status.seed_admin');
 
-        $this->create($seed['name'], $seed['username'], $seed['password']);
+        $this->create(
+            $seed['name'],
+            $seed['username'],
+            $seed['password'],
+            $seed['email'] ?? null,
+        );
 
         return true;
     }
 
-    public function updateAccount(User $user, string $name, string $username): User
+    public function updateAccount(User $user, string $name, string $username, string $email): User
     {
         $name = trim($name);
         $username = strtolower(trim($username));
+        $email = strtolower(trim($email));
 
         if ($name === '') {
             throw new StatusException('Name is required');
@@ -77,14 +86,18 @@ class UserService
         if ($username === '') {
             throw new StatusException('Username is required');
         }
+        if (! $this->isValidEmail($email)) {
+            throw new StatusException('A valid email is required');
+        }
 
-        $user->setUsernameWithIndex($username);
         $user->name = $name;
+        $user->setUsernameWithIndex($username);
+        $user->setEmailWithIndex($email);
 
         try {
             $user->save();
         } catch (QueryException $error) {
-            throw $this->translateUsernameConflict($error);
+            throw $this->translateUniqueConflict($error);
         }
 
         return $user;
@@ -109,52 +122,56 @@ class UserService
             throw new StatusException('New password must be different from the current one');
         }
 
-        if (! $this->passwords->verify($currentPassword, (string) $user->password)) {
+        if (! Hash::check($currentPassword, (string) $user->password)) {
             throw new StatusException('Current password is incorrect');
         }
 
-        $user->password = $this->passwords->hash($newPassword);
+        $user->password = $newPassword;
         $user->save();
     }
 
     /**
-     * @return array{ok: true, user: User}|array{ok: false, reason: string, message: string}
+     * Resolve login via username_hash or email_hash, then verify password.
+     *
+     * @return array{user: User}|array{ok: false, reason: string, message: string}
      */
-    public function attemptLogin(string $username, string $password): array
+    public function authenticate(string $identifier, string $password): array
     {
-        $normalized = strtolower(trim($username));
+        $normalized = strtolower(trim($identifier));
 
         if ($normalized === '') {
-            return ['ok' => false, 'reason' => 'empty_username', 'message' => 'Username is required'];
+            return ['ok' => false, 'reason' => 'empty_username', 'message' => 'Username or email is required'];
         }
         if ($password === '') {
             return ['ok' => false, 'reason' => 'empty_password', 'message' => 'Password is required'];
         }
 
-        $user = User::findByUsername($normalized);
+        $user = User::findByLogin($normalized);
 
-        if ($user === null) {
-            return ['ok' => false, 'reason' => 'unknown_user', 'message' => 'Unknown username'];
+        if ($user === null || ! Hash::check($password, (string) $user->password)) {
+            return ['ok' => false, 'reason' => 'auth_failed', 'message' => 'Incorrect password or username'];
         }
 
-        if (! $this->passwords->verify($password, (string) $user->password)) {
-            return ['ok' => false, 'reason' => 'bad_password', 'message' => 'Incorrect password'];
-        }
-
-        if ($this->passwords->needsRehash((string) $user->password)) {
-            $user->password = $this->passwords->hash($password);
-            $user->save();
-        }
-
-        return ['ok' => true, 'user' => $user];
+        return ['user' => $user];
     }
 
-    private function translateUsernameConflict(Throwable $error): Throwable
+    public function isValidEmail(string $email): bool
+    {
+        return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    private function translateUniqueConflict(Throwable $error): Throwable
     {
         $message = $error->getMessage();
 
-        if (str_contains($message, 'users_username_hash_key') || str_contains($message, 'duplicate key')) {
-            return new StatusException('Username already exists');
+        if (
+            str_contains($message, 'users_username_hash_unique')
+            || str_contains($message, 'users_email_hash_unique')
+            || str_contains($message, 'username_hash')
+            || str_contains($message, 'email_hash')
+            || str_contains($message, 'duplicate key')
+        ) {
+            return new StatusException('Username or email already exists');
         }
 
         return $error;
