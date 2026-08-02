@@ -1,6 +1,6 @@
-import { usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 
-import { csrfToken } from '@/lib/csrf';
 import type { SecurityScanRecord, StatusSharedProps } from '@/types/status';
 
 export interface SecurityViewProps {
@@ -25,6 +25,25 @@ function statusClass(status: string): string {
 export default function SecurityView({ scans, zapReady, monitorCount, flash, error }: SecurityViewProps) {
     const { app } = usePage<StatusSharedProps>().props;
     const scheduleLabel = app.zap?.scheduleLabel ?? 'Every Saturday at 6:00 AM SGT';
+    const [scanning, setScanning] = useState(false);
+
+    const canScan = monitorCount > 0 && !scanning;
+
+    function startScan() {
+        if (!canScan) {
+            return;
+        }
+
+        setScanning(true);
+        router.post(
+            '/security/scan',
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setScanning(false),
+            },
+        );
+    }
 
     return (
         <div className="w-full space-y-6">
@@ -44,20 +63,17 @@ export default function SecurityView({ scans, zapReady, monitorCount, flash, err
                     <div>
                         <h2 className="text-sm font-semibold tracking-tight">OWASP ZAP</h2>
                         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                            Baseline scans run {scheduleLabel.toLowerCase()} against every active website in Admin.
-                            Results are stored encrypted in <span className="font-mono">security_scans</span>.
+                            Baseline scans run {scheduleLabel.toLowerCase()} against every active website.
                         </p>
                     </div>
-                    <form action="/security/scan" method="post">
-                        <input type="hidden" name="_token" value={csrfToken()} />
-                        <button
-                            type="submit"
-                            disabled={!zapReady || monitorCount === 0}
-                            className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                        >
-                            Scan all now
-                        </button>
-                    </form>
+                    <button
+                        type="button"
+                        onClick={startScan}
+                        disabled={!canScan}
+                        className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                    >
+                        {scanning ? 'Starting…' : 'Scan all now'}
+                    </button>
                 </div>
                 <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
                     {monitorCount} active website{monitorCount === 1 ? '' : 's'}

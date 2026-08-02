@@ -35,17 +35,23 @@ class ZapScanService
         ];
     }
 
-    /** Kick off a full scan after the HTTP response (ZAP takes minutes). */
+    /** Start a full scan in a detached artisan process (ZAP takes minutes). */
     public function startAfterResponse(?int $userId = null): void
     {
-        $userId ??= User::query()->orderBy('id')->value('id');
-        $userId = $userId === null ? null : (int) $userId;
+        $logFile = storage_path('logs/zap-scan.log');
+        $command = sprintf(
+            'nohup %s %s status:zap-scan >> %s 2>&1 &',
+            escapeshellarg(PHP_BINARY),
+            escapeshellarg(base_path('artisan')),
+            escapeshellarg($logFile)
+        );
 
-        dispatch(function () use ($userId): void {
-            set_time_limit(0);
-            ignore_user_abort(true);
-            app(ZapScanService::class)->scanAllActive($userId);
-        })->afterResponse();
+        Log::info('Starting background OWASP ZAP scan.', [
+            'userId' => $userId,
+            'command' => $command,
+        ]);
+
+        exec($command);
     }
 
     /** Probe every active website and persist encrypted scan rows. */
