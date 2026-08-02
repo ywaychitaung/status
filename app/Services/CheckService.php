@@ -125,9 +125,9 @@ class CheckService
     /**
      * @return array{statuses: array<int, array<string, mixed>>, summary: array<string, string|null>, incidents: array<int, array<string, mixed>>}
      */
-    public function snapshot(): array
+    public function snapshot(?int $userId = null): array
     {
-        $monitors = $this->monitors->listActive();
+        $monitors = $this->monitors->listActive($userId);
 
         $rows = MonitorStatus::query()
             ->get(['monitor_id', 'up', 'checked_at', 'status_code', 'response_time_ms', 'error'])

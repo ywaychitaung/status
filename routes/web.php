@@ -58,7 +58,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/audits', [AuditsController::class, 'index'])->name('audits');
 
     Route::get('/security', [SecurityController::class, 'index'])->name('security');
+    Route::get('/security/scans/{scan}', [SecurityController::class, 'show'])
+        ->whereNumber('scan')
+        ->name('security.scans.show');
     Route::post('/security/scan', [SecurityController::class, 'scanNow'])->name('security.scan');
+    Route::get('/security/scan-status', [SecurityController::class, 'scanStatus'])->name('security.scan-status');
 
     Route::get('/account', [AccountController::class, 'index'])->name('account');
     Route::post('/account', [AccountController::class, 'dispatchAction'])->name('account.action');

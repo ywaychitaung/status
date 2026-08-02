@@ -95,7 +95,7 @@ class ZapScanner
                             'Medium' => SecurityScan::STATUS_WARN,
                             default => SecurityScan::STATUS_PASS,
                         },
-                        'message' => $finding['risk'].' ×'.$finding['count'].($finding['description'] !== '' ? ' — '.$finding['description'] : ''),
+                        'message' => $finding['risk'].' ×'.$finding['count'].($finding['description'] !== '' ? ' — '.Str::limit($finding['description'], 240, '…') : ''),
                         'meta' => $finding,
                     ], $findings),
                 ],
@@ -175,7 +175,7 @@ class ZapScanner
     }
 
     /**
-     * @return list<array{name: string, risk: string, count: int, pluginId: string, description: string}>
+     * @return list<array{name: string, risk: string, count: int, pluginId: string, description: string, solution: string, reference: string}>
      */
     private function summarizeFindings(?array $report): array
     {
@@ -192,14 +192,22 @@ class ZapScanner
             };
 
             $desc = html_entity_decode(strip_tags((string) ($alert['desc'] ?? $alert['description'] ?? '')), ENT_QUOTES | ENT_HTML5);
-            $desc = Str::limit(preg_replace('/\s+/', ' ', trim($desc)) ?? '', 240, '…');
+            $desc = preg_replace('/\s+/', ' ', trim($desc)) ?? '';
+
+            $solution = html_entity_decode(strip_tags((string) ($alert['solution'] ?? '')), ENT_QUOTES | ENT_HTML5);
+            $solution = preg_replace('/\s+/', ' ', trim($solution)) ?? '';
+
+            $reference = html_entity_decode(strip_tags((string) ($alert['reference'] ?? '')), ENT_QUOTES | ENT_HTML5);
+            $reference = preg_replace('/\s+/', ' ', trim($reference)) ?? '';
 
             $findings[] = [
                 'name' => (string) ($alert['name'] ?? $alert['alert'] ?? 'Alert'),
                 'risk' => $risk,
                 'count' => max(1, (int) ($alert['count'] ?? 1)),
                 'pluginId' => (string) ($alert['pluginid'] ?? $alert['pluginId'] ?? $alert['alertRef'] ?? ''),
-                'description' => $desc,
+                'description' => Str::limit($desc, 4000, '…'),
+                'solution' => Str::limit($solution, 4000, '…'),
+                'reference' => Str::limit($reference, 2000, '…'),
             ];
         }
 
@@ -210,7 +218,7 @@ class ZapScanner
                 ?: $b['count'] <=> $a['count'];
         });
 
-        return array_slice($findings, 0, 40);
+        return array_slice($findings, 0, 80);
     }
 
     /**

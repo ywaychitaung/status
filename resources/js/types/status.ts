@@ -22,6 +22,7 @@ export type PagePath =
 
 export interface MonitorTarget {
     id: string;
+    userId?: number;
     name: string;
     url: string;
     sortOrder: number;
@@ -73,9 +74,11 @@ export type AuditAction =
     | 'monitor.update'
     | 'monitor.delete'
     | 'monitor.reactivate'
-    | 'alerts.update';
+    | 'alerts.update'
+    | 'zap.manual_trigger'
+    | 'zap.zap_weekly';
 
-export type AuditEntityType = 'user' | 'monitor' | 'session' | 'alert_settings' | 'alert_channel';
+export type AuditEntityType = 'user' | 'monitor' | 'session' | 'alert_settings' | 'alert_channel' | 'zap_scan';
 
 export interface AuditRecord {
     id: string;
@@ -203,6 +206,16 @@ export interface AlertsPageProps extends StatusPageProps {
     error: string | null;
 }
 
+export interface SecurityScanFinding {
+    name: string;
+    risk: string;
+    count: number;
+    pluginId: string;
+    description: string;
+    solution: string;
+    reference: string;
+}
+
 export interface SecurityScanRecord {
     id: number;
     source: string;
@@ -212,7 +225,7 @@ export interface SecurityScanRecord {
     domainUrl: string;
     status: string;
     summary: string;
-    details: Record<string, unknown>;
+    details?: Record<string, unknown>;
     alertHigh: number;
     alertMedium: number;
     alertLow: number;
@@ -222,10 +235,28 @@ export interface SecurityScanRecord {
     scannedAtIso: string | null;
 }
 
+export interface ZapScanRunRecord {
+    id: number;
+    userId: number | null;
+    isActive: boolean;
+    status: string;
+    monitorsTotal: number;
+    monitorsCompleted: number;
+    startedAt: string;
+    startedAtIso: string | null;
+    finishedAt: string | null;
+    error: string | null;
+}
+
 export interface SecurityPageProps extends StatusPageProps {
     scans: SecurityScanRecord[];
     zapReady: boolean;
     monitorCount: number;
+    activeRun: ZapScanRunRecord | null;
     flash: string | null;
     error: string | null;
+}
+
+export interface SecurityScanDetailPageProps extends StatusPageProps {
+    scan: SecurityScanRecord;
 }

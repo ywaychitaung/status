@@ -23,6 +23,10 @@ export function formatAuditAction(action: AuditAction): string {
             return 'Website deleted';
         case 'monitor.reactivate':
             return 'Website reactivated';
+        case 'zap.manual_trigger':
+            return 'ZAP manual trigger';
+        case 'zap.zap_weekly':
+            return 'ZAP weekly scan';
         default:
             return action;
     }

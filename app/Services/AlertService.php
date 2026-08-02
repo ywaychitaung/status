@@ -54,7 +54,10 @@ class AlertService
                 return;
             }
 
-            $this->dispatch($this->buildMessage($monitor, $next, $previousUp, $consecutive));
+            $this->dispatch(
+                $this->buildMessage($monitor, $next, $previousUp, $consecutive),
+                $this->ownerUserId($monitor),
+            );
 
             return;
         }
@@ -72,7 +75,10 @@ class AlertService
             return;
         }
 
-        $this->dispatch($this->buildMessage($monitor, $next, $previousUp));
+        $this->dispatch(
+            $this->buildMessage($monitor, $next, $previousUp),
+            $this->ownerUserId($monitor),
+        );
     }
 
     private function ensureAlertState(string $monitorId): void
@@ -118,15 +124,33 @@ class AlertService
         return implode("\n", $lines);
     }
 
-    private function dispatch(string $message): void
+    /**
+     * @param  array{id: string, userId?: int|null}  $monitor
+     */
+    private function ownerUserId(array $monitor): ?int
     {
-        $this->sendDiscord($message);
-        $this->sendTelegram($message);
+        if (isset($monitor['userId']) && is_numeric($monitor['userId'])) {
+            return (int) $monitor['userId'];
+        }
+
+        $userId = DB::table('websites')->where('id', $monitor['id'])->value('user_id');
+
+        return $userId === null ? null : (int) $userId;
     }
 
-    private function sendDiscord(string $text): void
+    private function dispatch(string $message, ?int $userId): void
     {
-        $channel = AlertChannel::findByName(AlertChannel::NAME_DISCORD);
+        if ($userId === null) {
+            return;
+        }
+
+        $this->sendDiscord($message, $userId);
+        $this->sendTelegram($message, $userId);
+    }
+
+    private function sendDiscord(string $text, int $userId): void
+    {
+        $channel = AlertChannel::findByName(AlertChannel::NAME_DISCORD, $userId);
         $webhook = trim((string) ($channel?->webhook_url ?? ''));
         if ($webhook === '') {
             return;
@@ -143,9 +167,9 @@ class AlertService
         }
     }
 
-    private function sendTelegram(string $text): void
+    private function sendTelegram(string $text, int $userId): void
     {
-        $channel = AlertChannel::findByName(AlertChannel::NAME_TELEGRAM);
+        $channel = AlertChannel::findByName(AlertChannel::NAME_TELEGRAM, $userId);
         $token = trim((string) ($channel?->bot_token ?? ''));
         $chatId = trim((string) ($channel?->chat_id ?? ''));
 

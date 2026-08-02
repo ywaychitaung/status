@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Models\Concerns\ReadsEncryptedAttributes;
 use App\Services\FieldCrypto;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -20,7 +22,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string $email_hash
  * @property string $password
  * @property string|null $remember_token
- * @property \Illuminate\Support\Carbon|null $email_verified_at
+ * @property Carbon|null $email_verified_at
  */
 class User extends Authenticatable
 {
@@ -93,6 +95,18 @@ class User extends Authenticatable
         $normalized = strtolower(trim($email));
         $this->email = $normalized;
         $this->email_hash = static::hashIdentity($normalized);
+    }
+
+    /** @return HasMany<Monitor, $this> */
+    public function monitors(): HasMany
+    {
+        return $this->hasMany(Monitor::class);
+    }
+
+    /** @return HasMany<AlertChannel, $this> */
+    public function alertChannels(): HasMany
+    {
+        return $this->hasMany(AlertChannel::class);
     }
 
     /** Shape shared with the front end. */

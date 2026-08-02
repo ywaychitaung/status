@@ -48,6 +48,7 @@ class AdminController extends Controller
 
         try {
             $created = $this->monitors->create(
+                (int) $actor['id'],
                 $request->string('name')->toString(),
                 $request->string('url')->toString()
             );
@@ -77,10 +78,12 @@ class AdminController extends Controller
     public function update(Request $request, string $monitor): RedirectResponse
     {
         $actor = $this->actor($request);
-        $before = $this->monitors->find($monitor);
+        $userId = (int) $actor['id'];
+        $before = $this->monitors->find($monitor, $userId);
 
         try {
             $updated = $this->monitors->update(
+                $userId,
                 $monitor,
                 $request->string('name')->toString(),
                 $request->string('url')->toString(),
@@ -117,10 +120,11 @@ class AdminController extends Controller
     public function destroy(Request $request, string $monitor): RedirectResponse
     {
         $actor = $this->actor($request);
-        $before = $this->monitors->find($monitor);
+        $userId = (int) $actor['id'];
+        $before = $this->monitors->find($monitor, $userId);
 
         try {
-            $this->monitors->delete($monitor);
+            $this->monitors->delete($userId, $monitor);
         } catch (Throwable $error) {
             return $this->failure($this->message($error), $monitor);
         }
@@ -149,7 +153,7 @@ class AdminController extends Controller
         $actor = $this->actor($request);
 
         try {
-            $restored = $this->monitors->reactivate($monitor);
+            $restored = $this->monitors->reactivate((int) $actor['id'], $monitor);
         } catch (Throwable $error) {
             return $this->failure($this->message($error), $monitor);
         }

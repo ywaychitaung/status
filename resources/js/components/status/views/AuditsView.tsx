@@ -177,7 +177,7 @@ export default function AuditsView({ audits }: AuditsViewProps) {
                             </h2>
                             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                                 Successful and failed logins, logouts, profile/password changes, alert settings,
-                                and website create / update / delete / reactivate events.
+                                website create / update / delete / reactivate, and OWASP ZAP weekly / manual scans.
                             </p>
                         </div>
                     }

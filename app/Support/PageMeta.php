@@ -35,7 +35,7 @@ class PageMeta
         '/audits' => [
             'active' => 'audits',
             'title' => 'Audits',
-            'subtitle' => 'Login, logout, account, and website change history',
+            'subtitle' => 'Login, logout, account, website, and ZAP scan history',
         ],
         '/security' => [
             'active' => 'security',

@@ -70,14 +70,16 @@ class DashboardDataService
     public function adminPage(Request $request): array
     {
         $path = '/admin';
+        $userId = $this->userId($request);
+        $snapshot = $this->checks->snapshot($userId);
 
         return [
             'path' => $path,
             'meta' => PageMeta::forPath($path),
-            'frame' => $this->frame(),
+            'frame' => $this->frame($snapshot),
             'user' => $this->authUser($request),
-            'monitors' => $this->monitors->listActive(),
-            'inactiveMonitors' => $this->monitors->listInactive(),
+            'monitors' => $userId === null ? [] : $this->monitors->listActive($userId),
+            'inactiveMonitors' => $userId === null ? [] : $this->monitors->listInactive($userId),
             'flash' => $this->flash($request, 'flash'),
             'error' => $this->flash($request, 'error'),
             'editingId' => $this->flash($request, 'edit'),
@@ -102,13 +104,17 @@ class DashboardDataService
     public function alertsPage(Request $request): array
     {
         $path = '/alerts';
+        $userId = $this->userId($request);
+        $snapshot = $this->checks->snapshot($userId);
 
         return [
             'path' => $path,
             'meta' => PageMeta::forPath($path),
-            'frame' => $this->frame(),
+            'frame' => $this->frame($snapshot),
             'user' => $this->authUser($request),
-            'settings' => $this->alertSettings->toForm(),
+            'settings' => $userId === null
+                ? ['discordWebhookUrl' => '', 'telegramBotToken' => '', 'telegramChatId' => '']
+                : $this->alertSettings->toForm($userId),
             'flash' => $this->flash($request, 'flash'),
             'error' => $this->flash($request, 'error'),
         ];
@@ -118,16 +124,48 @@ class DashboardDataService
     public function securityPage(Request $request): array
     {
         $path = '/security';
-        $security = $this->zapScans->pageData();
+        /** @var User|null $user */
+        $user = $request->user();
+        $userId = $this->userId($request);
+        $snapshot = $this->checks->snapshot($userId);
+        $security = $this->zapScans->pageData($user instanceof User ? $user : null);
 
         return [
             'path' => $path,
             'meta' => PageMeta::forPath($path),
-            'frame' => $this->frame(),
+            'frame' => $this->frame($snapshot),
             'user' => $this->authUser($request),
             ...$security,
             'flash' => $this->flash($request, 'flash'),
             'error' => $this->flash($request, 'error'),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    public function securityScanPage(Request $request, int $scanId): ?array
+    {
+        $userId = $this->userId($request);
+        if ($userId === null) {
+            return null;
+        }
+
+        $scan = $this->zapScans->findForUser($scanId, $userId);
+        if ($scan === null) {
+            return null;
+        }
+
+        $snapshot = $this->checks->snapshot($userId);
+
+        return [
+            'path' => '/security',
+            'meta' => [
+                'active' => 'security',
+                'title' => 'Scan details',
+                'subtitle' => 'OWASP ZAP baseline findings and remediation guidance',
+            ],
+            'frame' => $this->frame($snapshot),
+            'user' => $this->authUser($request),
+            'scan' => $scan->toArrayForUi(includeDetails: true),
         ];
     }
 
@@ -152,6 +190,13 @@ class DashboardDataService
         $user = $request->user();
 
         return $user instanceof User ? $user->toAuthUser() : null;
+    }
+
+    private function userId(Request $request): ?int
+    {
+        $user = $request->user();
+
+        return $user instanceof User ? (int) $user->id : null;
     }
 
     /** Prefer the session flash bag, falling back to legacy query parameters. */

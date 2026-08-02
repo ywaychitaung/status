@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\StatusException;
 use App\Models\User;
 use App\Services\DashboardDataService;
-use App\Services\ZapScanService;
 use App\Services\ZapScanner;
+use App\Services\ZapScanService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -27,21 +29,26 @@ class SecurityController extends Controller
         return Inertia::render('security', $this->data->securityPage($request));
     }
 
-    /** Queue a ZAP baseline for every active website (runs after the response). */
-    public function scanNow(Request $request): RedirectResponse
+    public function show(Request $request, int $scan): Response|RedirectResponse
     {
-        if (! $this->zap->dockerAvailable()) {
-            return redirect()->route('security')->with(
-                'error',
-                'Docker / OWASP ZAP is not available on this server.'
-            );
+        $page = $this->data->securityScanPage($request, $scan);
+        if ($page === null) {
+            return redirect()->route('security')->with('error', 'Scan not found.');
         }
 
+        return Inertia::render('security-scan', $page);
+    }
+
+    /** Start a tracked ZAP batch for the current user. */
+    public function scanNow(Request $request): RedirectResponse
+    {
         /** @var User $user */
         $user = $request->user();
 
         try {
-            $this->zapScans->startAfterResponse((int) $user->id);
+            $this->zapScans->startManualScan($user);
+        } catch (StatusException $error) {
+            return redirect()->route('security')->with('error', $error->getMessage());
         } catch (Throwable $error) {
             Log::error('Manual ZAP scan failed to start: '.$error->getMessage());
 
@@ -50,7 +57,20 @@ class SecurityController extends Controller
 
         return redirect()->route('security')->with(
             'flash',
-            'OWASP ZAP scan started for all active websites. Refresh in a few minutes for results.'
+            'OWASP ZAP scan started. This page will update when it finishes.'
         );
+    }
+
+    /** Lightweight poll endpoint for active-run status. */
+    public function scanStatus(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $run = $this->zapScans->activeRunForUser((int) $user->id);
+
+        return response()->json([
+            'activeRun' => $run?->toArrayForUi(),
+            'zapReady' => $this->zap->dockerAvailable(),
+        ]);
     }
 }

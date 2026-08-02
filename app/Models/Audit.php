@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
 class Audit extends Model
 {
     use ReadsEncryptedAttributes;
+
     public const ACTIONS = [
         'auth.login',
         'auth.login_failed',
@@ -35,6 +36,8 @@ class Audit extends Model
         'monitor.update',
         'monitor.delete',
         'monitor.reactivate',
+        'zap.manual_trigger',
+        'zap.zap_weekly',
     ];
 
     protected $table = 'audits';
@@ -121,6 +124,8 @@ class Audit extends Model
             'monitor.update' => 'Website updated',
             'monitor.delete' => 'Website deleted',
             'monitor.reactivate' => 'Website reactivated',
+            'zap.manual_trigger' => 'ZAP manual trigger',
+            'zap.zap_weekly' => 'ZAP weekly scan',
             default => $action,
         };
     }

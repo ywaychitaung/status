@@ -4,11 +4,13 @@ namespace App\Models;
 
 use App\Models\Concerns\ReadsEncryptedAttributes;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * One alert destination row (discord, telegram, …) with shared columns.
  *
  * @property int $id
+ * @property int $user_id
  * @property string $name
  * @property string|null $webhook_url
  * @property string|null $bot_token
@@ -34,6 +36,7 @@ class AlertChannel extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'user_id',
         'name',
         'webhook_url',
         'bot_token',
@@ -46,22 +49,32 @@ class AlertChannel extends Model
     protected function casts(): array
     {
         return [
+            'user_id' => 'integer',
             'webhook_url' => 'encrypted',
             'bot_token' => 'encrypted',
             'chat_id' => 'encrypted',
         ];
     }
 
-    public static function findByName(string $name): ?self
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
     {
-        return static::query()->where('name', $name)->first();
+        return $this->belongsTo(User::class);
     }
 
-    public static function ensureDefaults(): void
+    public static function findByName(string $name, int $userId): ?self
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('name', $name)
+            ->first();
+    }
+
+    public static function ensureDefaults(int $userId): void
     {
         foreach (self::NAMES as $name) {
             static::query()->firstOrCreate(
-                ['name' => $name],
+                ['user_id' => $userId, 'name' => $name],
                 [
                     'webhook_url' => null,
                     'bot_token' => null,

@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\AlertChannel;
 
-/** Read / update Discord + Telegram alert channel rows. */
+/** Read / update Discord + Telegram alert channel rows for one user. */
 class AlertSettingsService
 {
     /**
@@ -12,12 +12,12 @@ class AlertSettingsService
      *
      * @return array{discordWebhookUrl: string, telegramBotToken: string, telegramChatId: string}
      */
-    public function toForm(): array
+    public function toForm(int $userId): array
     {
-        AlertChannel::ensureDefaults();
+        AlertChannel::ensureDefaults($userId);
 
-        $discord = AlertChannel::findByName(AlertChannel::NAME_DISCORD);
-        $telegram = AlertChannel::findByName(AlertChannel::NAME_TELEGRAM);
+        $discord = AlertChannel::findByName(AlertChannel::NAME_DISCORD, $userId);
+        $telegram = AlertChannel::findByName(AlertChannel::NAME_TELEGRAM, $userId);
 
         return [
             'discordWebhookUrl' => (string) ($discord?->webhook_url ?? ''),
@@ -29,13 +29,17 @@ class AlertSettingsService
     /**
      * @return array{changed: list<string>}
      */
-    public function update(string $discordWebhookUrl, string $telegramBotToken, string $telegramChatId): array
-    {
-        AlertChannel::ensureDefaults();
+    public function update(
+        int $userId,
+        string $discordWebhookUrl,
+        string $telegramBotToken,
+        string $telegramChatId,
+    ): array {
+        AlertChannel::ensureDefaults($userId);
 
         $changed = [];
 
-        $discord = AlertChannel::findByName(AlertChannel::NAME_DISCORD);
+        $discord = AlertChannel::findByName(AlertChannel::NAME_DISCORD, $userId);
         if ($discord !== null) {
             $before = (string) ($discord->webhook_url ?? '');
             $discord->webhook_url = $this->nullableTrim($discordWebhookUrl);
@@ -48,7 +52,7 @@ class AlertSettingsService
             }
         }
 
-        $telegram = AlertChannel::findByName(AlertChannel::NAME_TELEGRAM);
+        $telegram = AlertChannel::findByName(AlertChannel::NAME_TELEGRAM, $userId);
         if ($telegram !== null) {
             $beforeToken = (string) ($telegram->bot_token ?? '');
             $beforeChat = (string) ($telegram->chat_id ?? '');

@@ -13,7 +13,7 @@ use Throwable;
 /** Port of _legacy/lib/monitorsDb.ts. */
 class MonitorService
 {
-    private const SELECT_COLUMNS = ['id', 'name', 'url', 'url_hash', 'sort_order', 'is_active'];
+    private const SELECT_COLUMNS = ['id', 'user_id', 'name', 'url', 'url_hash', 'sort_order', 'is_active'];
 
     public function __construct(
         private readonly FieldCrypto $crypto,
@@ -21,14 +21,20 @@ class MonitorService
     ) {}
 
     /**
-     * Active monitors only, ordered for public + admin + checks.
+     * Active monitors, ordered for public + admin + checks.
+     * Pass $userId to restrict to one owner's websites.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function listActive(): array
+    public function listActive(?int $userId = null): array
     {
-        return Monitor::query()
-            ->active()
+        $query = Monitor::query()->active();
+
+        if ($userId !== null) {
+            $query->forUser($userId);
+        }
+
+        return $query
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get(self::SELECT_COLUMNS)
@@ -41,9 +47,10 @@ class MonitorService
      *
      * @return array<int, array<string, mixed>>
      */
-    public function listInactive(): array
+    public function listInactive(int $userId): array
     {
         return Monitor::query()
+            ->forUser($userId)
             ->inactive()
             ->orderByDesc('updated_at')
             ->orderBy('id')
@@ -53,18 +60,21 @@ class MonitorService
     }
 
     /** @return array<string, mixed>|null */
-    public function find(string $id): ?array
+    public function find(string $id, ?int $userId = null): ?array
     {
-        $monitor = Monitor::query()
+        $query = Monitor::query()
             ->active()
-            ->whereKey($id)
-            ->first(self::SELECT_COLUMNS);
+            ->whereKey($id);
 
-        return $monitor?->toTarget();
+        if ($userId !== null) {
+            $query->forUser($userId);
+        }
+
+        return $query->first(self::SELECT_COLUMNS)?->toTarget();
     }
 
     /** @return array<string, mixed> */
-    public function create(string $name, string $url): array
+    public function create(int $userId, string $name, string $url): array
     {
         $name = trim($name);
         if ($name === '') {
@@ -75,11 +85,12 @@ class MonitorService
         $id = Ulid::generate();
 
         try {
-            $target = DB::transaction(function () use ($id, $name, $normalizedUrl): array {
-                $sortOrder = $this->nextSortOrder();
+            $target = DB::transaction(function () use ($id, $userId, $name, $normalizedUrl): array {
+                $sortOrder = $this->nextSortOrder($userId);
 
                 Monitor::query()->create([
                     'id' => $id,
+                    'user_id' => $userId,
                     'name' => $name,
                     'url' => $normalizedUrl,
                     'url_hash' => $this->crypto->blindIndex($normalizedUrl),
@@ -89,6 +100,7 @@ class MonitorService
 
                 return [
                     'id' => $id,
+                    'userId' => $userId,
                     'name' => $name,
                     'url' => $normalizedUrl,
                     'sortOrder' => $sortOrder,
@@ -105,7 +117,7 @@ class MonitorService
     }
 
     /** @return array<string, mixed> */
-    public function update(string $id, string $name, string $url, mixed $sortOrder): array
+    public function update(int $userId, string $id, string $name, string $url, mixed $sortOrder): array
     {
         $name = trim($name);
         if ($name === '') {
@@ -124,9 +136,10 @@ class MonitorService
         ];
 
         try {
-            DB::transaction(function () use ($id, $order, $payload): void {
+            DB::transaction(function () use ($userId, $id, $order, $payload): void {
                 $current = DB::table('websites')
                     ->where('id', $id)
+                    ->where('user_id', $userId)
                     ->where('is_active', true)
                     ->lockForUpdate()
                     ->first();
@@ -140,6 +153,7 @@ class MonitorService
                 if ($oldOrder === $order) {
                     DB::table('websites')
                         ->where('id', $id)
+                        ->where('user_id', $userId)
                         ->where('is_active', true)
                         ->update($payload);
 
@@ -147,6 +161,7 @@ class MonitorService
                 }
 
                 $occupant = DB::table('websites')
+                    ->where('user_id', $userId)
                     ->where('sort_order', $order)
                     ->where('is_active', true)
                     ->where('id', '<>', $id)
@@ -160,15 +175,18 @@ class MonitorService
 
                     DB::table('websites')
                         ->where('id', $id)
+                        ->where('user_id', $userId)
                         ->update(['sort_order' => $parkOrder, 'updated_at' => now()]);
 
                     DB::table('websites')
                         ->where('id', $occupant->id)
+                        ->where('user_id', $userId)
                         ->update(['sort_order' => $oldOrder, 'updated_at' => now()]);
                 }
 
                 DB::table('websites')
                     ->where('id', $id)
+                    ->where('user_id', $userId)
                     ->update($payload + ['sort_order' => $order]);
             });
         } catch (StatusException $error) {
@@ -181,6 +199,7 @@ class MonitorService
 
         return [
             'id' => $id,
+            'userId' => $userId,
             'name' => $name,
             'url' => $normalizedUrl,
             'sortOrder' => $order,
@@ -189,10 +208,11 @@ class MonitorService
     }
 
     /** Soft-delete: mark inactive instead of removing the row. */
-    public function delete(string $id): bool
+    public function delete(int $userId, string $id): bool
     {
         $affected = DB::table('websites')
             ->where('id', $id)
+            ->where('user_id', $userId)
             ->where('is_active', true)
             ->update(['is_active' => false, 'updated_at' => now()]);
 
@@ -210,14 +230,15 @@ class MonitorService
      *
      * @return array<string, mixed>
      */
-    public function reactivate(string $id): array
+    public function reactivate(int $userId, string $id): array
     {
         $clashMessage = 'An active website already uses this URL. Change or remove it first.';
 
         try {
-            $sortOrder = DB::transaction(function () use ($id, $clashMessage): int {
+            $sortOrder = DB::transaction(function () use ($userId, $id, $clashMessage): int {
                 $current = DB::table('websites')
                     ->where('id', $id)
+                    ->where('user_id', $userId)
                     ->where('is_active', false)
                     ->lockForUpdate()
                     ->first();
@@ -227,6 +248,7 @@ class MonitorService
                 }
 
                 $clash = DB::table('websites')
+                    ->where('user_id', $userId)
                     ->where('url_hash', $current->url_hash)
                     ->where('is_active', true)
                     ->where('id', '<>', $id)
@@ -236,10 +258,11 @@ class MonitorService
                     throw new StatusException($clashMessage);
                 }
 
-                $sortOrder = $this->nextSortOrder();
+                $sortOrder = $this->nextSortOrder($userId);
 
                 DB::table('websites')
                     ->where('id', $id)
+                    ->where('user_id', $userId)
                     ->update([
                         'is_active' => true,
                         'sort_order' => $sortOrder,
@@ -256,10 +279,14 @@ class MonitorService
 
         $this->events->notifyUpdate();
 
-        $monitor = Monitor::query()->whereKey($id)->first(self::SELECT_COLUMNS);
+        $monitor = Monitor::query()
+            ->forUser($userId)
+            ->whereKey($id)
+            ->first(self::SELECT_COLUMNS);
 
         return $monitor?->toTarget() ?? [
             'id' => $id,
+            'userId' => $userId,
             'name' => '',
             'url' => '',
             'sortOrder' => $sortOrder,
@@ -267,9 +294,12 @@ class MonitorService
         ];
     }
 
-    private function nextSortOrder(): int
+    private function nextSortOrder(int $userId): int
     {
-        $max = DB::table('websites')->where('is_active', true)->max('sort_order');
+        $max = DB::table('websites')
+            ->where('user_id', $userId)
+            ->where('is_active', true)
+            ->max('sort_order');
 
         return (int) $max + 1;
     }

@@ -5,10 +5,12 @@ namespace App\Models;
 use App\Models\Concerns\ReadsEncryptedAttributes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property string $id ULID
+ * @property int $user_id
  * @property string $name plaintext (decrypted)
  * @property string $url plaintext (decrypted)
  * @property string|null $url_hash
@@ -18,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Monitor extends Model
 {
     use ReadsEncryptedAttributes;
+
     protected $table = 'websites';
 
     protected $keyType = 'string';
@@ -29,6 +32,7 @@ class Monitor extends Model
      */
     protected $fillable = [
         'id',
+        'user_id',
         'name',
         'url',
         'url_hash',
@@ -42,6 +46,7 @@ class Monitor extends Model
     protected function casts(): array
     {
         return [
+            'user_id' => 'integer',
             'name' => 'encrypted',
             'url' => 'encrypted',
             'sort_order' => 'integer',
@@ -63,6 +68,18 @@ class Monitor extends Model
         return $query->where('is_active', false);
     }
 
+    /** @param  Builder<Monitor>  $query */
+    public function scopeForUser(Builder $query, int $userId): Builder
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     /** @return HasOne<MonitorStatus, $this> */
     public function status(): HasOne
     {
@@ -80,6 +97,7 @@ class Monitor extends Model
     {
         return [
             'id' => (string) $this->id,
+            'userId' => (int) $this->user_id,
             'name' => (string) $this->name,
             'url' => (string) $this->url,
             'sortOrder' => (int) $this->sort_order,

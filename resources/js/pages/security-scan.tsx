@@ -4,20 +4,10 @@ import AuthControls from '@/components/status/AuthControls';
 import DashboardShell from '@/components/status/DashboardShell';
 import LiveClock from '@/components/status/LiveClock';
 import ThemeToggle from '@/components/status/ThemeToggle';
-import SecurityView from '@/components/status/views/SecurityView';
-import type { SecurityPageProps } from '@/types/status';
+import SecurityScanDetailView from '@/components/status/views/SecurityScanDetailView';
+import type { SecurityScanDetailPageProps } from '@/types/status';
 
-export default function SecurityPage({
-    meta,
-    frame,
-    user,
-    scans,
-    zapReady,
-    monitorCount,
-    activeRun,
-    flash,
-    error,
-}: SecurityPageProps) {
+export default function SecurityScanPage({ meta, frame, user, scan }: SecurityScanDetailPageProps) {
     return (
         <>
             <Head title={meta.title} />
@@ -36,14 +26,7 @@ export default function SecurityPage({
                 authControls={<AuthControls authName={user?.name ?? null} />}
                 authName={user?.name ?? null}
             >
-                <SecurityView
-                    scans={scans}
-                    zapReady={zapReady}
-                    monitorCount={monitorCount}
-                    activeRun={activeRun}
-                    flash={flash}
-                    error={error}
-                />
+                <SecurityScanDetailView scan={scan} />
             </DashboardShell>
         </>
     );

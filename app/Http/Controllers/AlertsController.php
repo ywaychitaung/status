@@ -34,6 +34,7 @@ class AlertsController extends Controller
 
         try {
             $result = $this->settings->update(
+                (int) $user->id,
                 $request->string('discord_webhook_url')->toString(),
                 $request->string('telegram_bot_token')->toString(),
                 $request->string('telegram_chat_id')->toString(),

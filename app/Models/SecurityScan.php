@@ -21,10 +21,10 @@ use Illuminate\Support\Carbon;
  * @property string $status
  * @property string $summary plaintext (decrypted)
  * @property array<string, mixed> $details plaintext (decrypted)
- * @property int $alert_high
- * @property int $alert_medium
- * @property int $alert_low
- * @property int $alert_info
+ * @property string|int|null $alert_high plaintext count (decrypted)
+ * @property string|int|null $alert_medium plaintext count (decrypted)
+ * @property string|int|null $alert_low plaintext count (decrypted)
+ * @property string|int|null $alert_info plaintext count (decrypted)
  * @property int|null $exit_code
  * @property Carbon $scanned_at
  */
@@ -39,6 +39,10 @@ class SecurityScan extends Model
     public const STATUS_FAIL = 'fail';
 
     public const ENGINE_ZAP = 'owasp_zap';
+
+    public const SOURCE_WEEKLY = 'zap_weekly';
+
+    public const SOURCE_MANUAL = 'manual_trigger';
 
     protected $table = 'security_scans';
 
@@ -73,10 +77,10 @@ class SecurityScan extends Model
             'domain_url' => 'encrypted',
             'summary' => 'encrypted',
             'details' => 'encrypted:array',
-            'alert_high' => 'integer',
-            'alert_medium' => 'integer',
-            'alert_low' => 'integer',
-            'alert_info' => 'integer',
+            'alert_high' => 'encrypted',
+            'alert_medium' => 'encrypted',
+            'alert_low' => 'encrypted',
+            'alert_info' => 'encrypted',
             'exit_code' => 'integer',
             'scanned_at' => 'datetime',
         ];
@@ -91,9 +95,9 @@ class SecurityScan extends Model
     }
 
     /** @return array<string, mixed> */
-    public function toArrayForUi(): array
+    public function toArrayForUi(bool $includeDetails = true): array
     {
-        return [
+        $payload = [
             'id' => (int) $this->id,
             'source' => (string) $this->source,
             'engine' => (string) ($this->engine ?: self::ENGINE_ZAP),
@@ -102,14 +106,30 @@ class SecurityScan extends Model
             'domainUrl' => (string) $this->domain_url,
             'status' => (string) $this->status,
             'summary' => (string) $this->summary,
-            'details' => $this->details ?? [],
-            'alertHigh' => (int) $this->alert_high,
-            'alertMedium' => (int) $this->alert_medium,
-            'alertLow' => (int) $this->alert_low,
-            'alertInfo' => (int) $this->alert_info,
+            'alertHigh' => $this->alertCount('alert_high'),
+            'alertMedium' => $this->alertCount('alert_medium'),
+            'alertLow' => $this->alertCount('alert_low'),
+            'alertInfo' => $this->alertCount('alert_info'),
             'exitCode' => $this->exit_code === null ? null : (int) $this->exit_code,
             'scannedAt' => DashboardDatetime::format($this->scanned_at?->toIso8601String() ?? now()->toIso8601String()),
             'scannedAtIso' => $this->scanned_at?->toIso8601String(),
         ];
+
+        if ($includeDetails) {
+            $payload['details'] = $this->details ?? [];
+        }
+
+        return $payload;
+    }
+
+    private function alertCount(string $attribute): int
+    {
+        $value = $this->getAttribute($attribute);
+
+        if ($value === null || $value === '') {
+            return 0;
+        }
+
+        return max(0, (int) $value);
     }
 }

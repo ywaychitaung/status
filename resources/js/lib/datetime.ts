@@ -37,10 +37,10 @@ export function formatDashboardDatetimeWithTimezone(iso: string, timezoneId: str
     const dayPeriod = map.get('dayPeriod');
 
     if (!day || !month || !year || !hour || !minute || !second || !dayPeriod) {
-        return formatter.format(date);
+        return formatter.format(date).replace(/\b(am|pm)\b/gi, (match) => match.toUpperCase());
     }
 
-    return `${day} ${month} ${year}, ${hour}:${minute}:${second} ${dayPeriod}`;
+    return `${day} ${month} ${year}, ${hour}:${minute}:${second} ${dayPeriod.toUpperCase()}`;
 }
 
 /**

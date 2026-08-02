@@ -9,7 +9,7 @@ use Throwable;
 
 /**
  * Dashboard timestamp formatting, matching the Intl output used by the legacy
- * Deno app (_legacy/lib/datetimeShared.ts): "29 July 2026, 11:53:00 pm".
+ * Deno app (_legacy/lib/datetimeShared.ts): "29 July 2026, 11:53:00 PM".
  */
 class DashboardDatetime
 {
@@ -54,7 +54,7 @@ class DashboardDatetime
 
         return $date
             ->setTimezone(new DateTimeZone(self::safeTimezone($timezoneId)))
-            ->format('d F Y, h:i:s a');
+            ->format('d F Y, h:i:s A');
     }
 
     /** ISO-8601 with milliseconds and a Z suffix, like Date#toISOString(). */

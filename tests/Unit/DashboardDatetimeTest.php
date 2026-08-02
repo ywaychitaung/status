@@ -10,11 +10,11 @@ class DashboardDatetimeTest extends TestCase
     public function test_it_formats_like_the_legacy_intl_output(): void
     {
         $this->assertSame(
-            '30 July 2026, 12:14:08 am',
+            '30 July 2026, 12:14:08 AM',
             DashboardDatetime::formatWithTimezone('2026-07-29T16:14:08.000Z', 'Asia/Singapore')
         );
         $this->assertSame(
-            '29 July 2026, 04:14:08 pm',
+            '29 July 2026, 04:14:08 PM',
             DashboardDatetime::formatWithTimezone('2026-07-29T16:14:08.000Z', 'UTC')
         );
     }
