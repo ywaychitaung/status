@@ -1,3 +1,6 @@
+import { Eye, EyeOff } from 'lucide-react';
+import { useState } from 'react';
+
 import { csrfToken } from '@/lib/csrf';
 
 export interface AlertSettingsForm {
@@ -10,6 +13,46 @@ export interface AlertsViewProps {
     settings: AlertSettingsForm;
     flash: string | null;
     error: string | null;
+}
+
+function SecretField({
+    name,
+    label,
+    defaultValue,
+    placeholder,
+    inputType = 'text',
+}: {
+    name: string;
+    label: string;
+    defaultValue: string;
+    placeholder: string;
+    inputType?: 'text' | 'url';
+}) {
+    const [visible, setVisible] = useState(false);
+
+    return (
+        <label className="block">
+            <span className="text-[11px] font-medium tracking-wider text-zinc-500 uppercase">{label}</span>
+            <div className="relative mt-1.5">
+                <input
+                    type={visible ? inputType : 'password'}
+                    name={name}
+                    defaultValue={defaultValue}
+                    placeholder={placeholder}
+                    autoComplete="off"
+                    className="w-full rounded-xl border border-zinc-200 bg-white py-2 pr-10 pl-3 text-sm ring-emerald-500/40 outline-none focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950"
+                />
+                <button
+                    type="button"
+                    onClick={() => setVisible((v) => !v)}
+                    className="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center text-zinc-500 transition hover:text-zinc-800 dark:hover:text-zinc-200"
+                    aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+                >
+                    {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+            </div>
+        </label>
+    );
 }
 
 export default function AlertsView({ settings, flash, error }: AlertsViewProps) {
@@ -39,49 +82,29 @@ export default function AlertsView({ settings, flash, error }: AlertsViewProps) 
 
                     <div className="space-y-3 rounded-xl border border-zinc-200/90 p-4 dark:border-zinc-800">
                         <h3 className="text-xs font-semibold tracking-wider text-zinc-500 uppercase">Discord</h3>
-                        <label className="block">
-                            <span className="text-[11px] font-medium tracking-wider text-zinc-500 uppercase">
-                                Webhook URL
-                            </span>
-                            <input
-                                type="url"
-                                name="discord_webhook_url"
-                                defaultValue={settings.discordWebhookUrl}
-                                placeholder="https://discord.com/api/webhooks/…"
-                                autoComplete="off"
-                                className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm ring-emerald-500/40 outline-none focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950"
-                            />
-                        </label>
+                        <SecretField
+                            name="discord_webhook_url"
+                            label="Webhook URL"
+                            defaultValue={settings.discordWebhookUrl}
+                            placeholder="https://discord.com/api/webhooks/…"
+                            inputType="url"
+                        />
                     </div>
 
                     <div className="space-y-3 rounded-xl border border-zinc-200/90 p-4 dark:border-zinc-800">
                         <h3 className="text-xs font-semibold tracking-wider text-zinc-500 uppercase">Telegram</h3>
-                        <label className="block">
-                            <span className="text-[11px] font-medium tracking-wider text-zinc-500 uppercase">
-                                Bot token
-                            </span>
-                            <input
-                                type="text"
-                                name="telegram_bot_token"
-                                defaultValue={settings.telegramBotToken}
-                                placeholder="123456:ABC-DEF…"
-                                autoComplete="off"
-                                className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm ring-emerald-500/40 outline-none focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950"
-                            />
-                        </label>
-                        <label className="block">
-                            <span className="text-[11px] font-medium tracking-wider text-zinc-500 uppercase">
-                                Chat ID
-                            </span>
-                            <input
-                                type="text"
-                                name="telegram_chat_id"
-                                defaultValue={settings.telegramChatId}
-                                placeholder="-100…"
-                                autoComplete="off"
-                                className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm ring-emerald-500/40 outline-none focus:ring-2 dark:border-zinc-700 dark:bg-zinc-950"
-                            />
-                        </label>
+                        <SecretField
+                            name="telegram_bot_token"
+                            label="Bot token"
+                            defaultValue={settings.telegramBotToken}
+                            placeholder="123456:ABC-DEF…"
+                        />
+                        <SecretField
+                            name="telegram_chat_id"
+                            label="Chat ID"
+                            defaultValue={settings.telegramChatId}
+                            placeholder="-100…"
+                        />
                     </div>
 
                     <div>
